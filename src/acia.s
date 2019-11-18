@@ -2,10 +2,10 @@
 
 .rodata
 
-ACIA_DATA: .word $8800
-ACIA_STATUS: .word $8801
-ACIA_COMMAND: .word $8802
-ACIA_CONTROL: .word $8803
+ACIA_DATA: .word $E000
+ACIA_STATUS: .word $E001
+ACIA_COMMAND: .word $E002
+ACIA_CONTROL: .word $E003
 ACIA_INIT_COMMAND: .byte %00001011 ; No parity, no echo, no interrupt
 ACIA_INIT_CONTROL: .byte %00011111 ; 1 stop bit, 8 data bits, 19200 baud
 
@@ -62,19 +62,19 @@ acia_read: ; ( addr -- )
 
 ; read a character from the acia
 acia_get: ; (  -- char )
- @wait_rxd_full:
+ @not_full:
     and #$08
-    beq @wait_rxd_full
+    beq @not_full
     push ACIA_DATA
     rts
 
 
 ; write a character to the acia
 acia_put: ; ( char -- )
- @wait_txd_empty:
+ @not_empty:
     lda ACIA_STATUS
     and #$10
-    beq @wait_txd_empty
+    beq @not_empty
     lda 1, x
     sta ACIA_DATA
     pop
