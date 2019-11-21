@@ -2,21 +2,21 @@
 
 .rodata
 
-ACIA_DATA: .word $E000
-ACIA_STATUS: .word $E001
-ACIA_COMMAND: .word $E002
-ACIA_CONTROL: .word $E003
-ACIA_INIT_COMMAND: .byte %00001011 ; No parity, no echo, no interrupt
-ACIA_INIT_CONTROL: .byte %00011111 ; 1 stop bit, 8 data bits, 19200 baud
+ACIA_DATA = $E000
+ACIA_STATUS = $E001
+ACIA_COMMAND = $E002
+ACIA_CONTROL = $E003
+ACIA_INIT_COMMAND = %00001011 ; No parity, no echo, no interrupt
+ACIA_INIT_CONTROL = %00011111 ; 1 stop bit, 8 data bits, 19200 baud
 
 .code
 
 
 ; init the acia
 acia_init:
-    lda ACIA_INIT_COMMAND
+    lda #ACIA_INIT_COMMAND
     sta ACIA_COMMAND
-    lda ACIA_INIT_CONTROL
+    lda #ACIA_INIT_CONTROL
     sta ACIA_CONTROL
     rts
 
@@ -63,9 +63,11 @@ acia_read: ; ( addr -- )
 ; read a character from the acia
 acia_get: ; (  -- char )
  @not_full:
+    lda ACIA_STATUS
     and #$08
     beq @not_full
     push ACIA_DATA
+    jsr fetch
     rts
 
 

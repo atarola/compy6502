@@ -7,18 +7,6 @@ STACK_JUMP: .res 2
 
 .code
 
-
-; init the stack
-stack_init:
-    ; setup the hardware stack pointer
-    ldx  #$FF
-    txs
-
-    ; setup the data stack pointer
-    ldx #$ff
-    rts
-
-
 ; remove an item from the stack
 .macro pop
     inx

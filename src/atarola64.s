@@ -1,38 +1,23 @@
-; main file
-
+; ; main file
+;
 .setcpu "65c02"
-
-.include "stack.s"
-.include "acia.s"
 
 .code
 
 
-; main loop
 main:
-    jsr init
+    ldx $00
 
- @loop:
-    jsr write_cursor
-    push MAIN_BUFFER
-    jsr dup
-    jsr acia_read
-    jsr acia_write
+ @loop
+    ldx $aa
+    stx $6000
+    nop
+
+    ldx $55
+    stx $6000
+    nop
+
     jmp @loop
-
-
-; setup the computer
-init:
-    jsr stack_init
-    jsr acia_init
-    rts
-
-
-; write the cursor to the acia
-write_cursor:
-    push MAIN_PROMPT
-    jsr acia_write
-    rts
 
 
 ; IRQ handler
@@ -44,14 +29,6 @@ on_irq:
 on_nmi:
     rti
 
-
-.bss
-
-MAIN_BUFFER: .res 255
-
-.rodata
-
-MAIN_PROMPT: .byte " --> ", $00
 
 .segment "VECTORS"
 
