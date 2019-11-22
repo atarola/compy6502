@@ -4,13 +4,13 @@
 
 .code
 
-
+; app entrypoint
 main:
     ldx $00
 
- @loop
+ @loop:
     ldx $aa
-    stx $6000
+    stx $E000
     nop
 
     ldx $55
@@ -19,16 +19,13 @@ main:
 
     jmp @loop
 
-
 ; IRQ handler
 on_irq:
     rti
 
-
 ; NMI handler
 on_nmi:
     rti
-
 
 .segment "VECTORS"
 
