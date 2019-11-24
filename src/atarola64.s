@@ -12,13 +12,8 @@ main:
     ; set the data stack pointer
     ldx #$ff
 
-    ; load our data
-    spush #$00, #$90
-    spush #$55, #$aa
-    spush #$00, #$90
-    jsr sstore
-    jsr sfetch
-    jmp main
+ @loop:
+    jmp @loop
 
 ; IRQ handler
 on_irq:
