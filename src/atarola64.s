@@ -1,26 +1,24 @@
-; ; main file
+;
+; main file
 ;
 .setcpu "65c02"
 
-.code
+.include "stack.s"
 
-FIRST = $0300
-SECOND = $0301
+.code
 
 ; app entrypoint
 main:
-    ldx #$55
-    stx FIRST
-    ldx #$aa
-    stx SECOND
- @loop:
-    ldx FIRST
-    stx $9001
-    nop
-    ldx SECOND
-    stx $9001
-    nop
-    jmp @loop
+    ; set the data stack pointer
+    ldx #$ff
+
+    ; load our data
+    spush #$00, #$90
+    spush #$55, #$aa
+    spush #$00, #$90
+    jsr sstore
+    jsr sfetch
+    jmp main
 
 ; IRQ handler
 on_irq:
