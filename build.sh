@@ -8,15 +8,5 @@ mkdir -p ./bin
 rm -rf ./build/*
 rm -rf ./bin/*
 
-# # assemble all of the files
-# for pathname in $(find . -type f -name "*.s"); do
-#     # grab the filename
-#     base=$(basename $pathname)
-#     fname=${base%.*}
-#
-#     # assemble the file
-#     ca65 -o "./build/$fname.o" $pathname
-# done;
-
-ca65 -I ./src -o ./build/atarola64.o ./src/atarola64.s
-ld65 -C atarola64.x -o ./bin/atarola64.bin ./build/atarola64.o
+ca65 -I ./src -o ./build/compy6502.o ./src/main.s
+ld65 -C compy6502.x -o ./bin/compy6502.bin ./build/compy6502.o
