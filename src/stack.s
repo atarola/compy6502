@@ -15,19 +15,11 @@
 .macro spush low, high
     pha
     dex
- .ifblank high
-    lda $00
-    sta 0, x
- .endif
  .ifnblank high
     lda high
     sta 0, x
  .endif
     dex
- .ifblank low
-    lda $00
-    sta 0, x
- .endif
  .ifnblank low
     lda low
     sta 0, x
@@ -105,7 +97,7 @@ sswap: ; N1, N2 -> N2, N1
     pha
     lda 3, x
     sta 1, x
-    pha
+    pla
     sta 3, x
     rts
 

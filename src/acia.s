@@ -1,73 +1,66 @@
 ; 6551 ACIA handler
 
-.rodata
-
-ACIA_DATA: .word $8800
-ACIA_STATUS: .word $8801
-ACIA_COMMAND: .word $8802
-ACIA_CONTROL: .word $8803
-ACIA_INIT_COMMAND: .byte %00001011 ; No parity, no echo, no interrupt
-ACIA_INIT_CONTROL: .byte %00011111 ; 1 stop bit, 8 data bits, 19200 baud
-
 .code
 
+ACIA_DATA = $e000
+ACIA_STATUS = $e001
+ACIA_COMMAND = $e002
+ACIA_CONTROL = $e003
 
 ; init the acia
 acia_init:
-    lda ACIA_INIT_COMMAND
+    lda #%00001011 ; No parity, no echo, no interrupt
     sta ACIA_COMMAND
-    lda ACIA_INIT_CONTROL
+    lda #%00011111 ; 1 stop bit, 8 data bits, 19200 baud
     sta ACIA_CONTROL
     rts
-
 
 ; write a null-terminated string to the acia
 ; will output a newline-terminated string
 acia_write: ; ( addr -- )
  @next_char:
-    jsr dup
-    jsr fetch
+    jsr sdup
+    jsr sfetch
     lda 1, x
     beq @eos
     jsr acia_put
-    increment
+    sinc
     jmp @next_char
  @eos:
     jsr acia_put_newline
-    pop
+    sdrop
     rts
-
 
 ; read a newline-termiated string from the acia
 ; will output a null-terminated string
 acia_read: ; ( addr -- )
  @next_char:
-    jsr dup
+    spush
     jsr acia_get
     lda 1, x
     cmp $0a
     beq @eos
-    jsr swap
-    jsr store
-    increment
+    jsr sswap
+    jsr sstore
+    sinc
     jmp @next_char
  @eos:
-    lda #$00
     sta 1, x
-    jsr swap
-    jsr store
-    pop
+    jsr sswap
+    jsr sstore
+    sdrop
     rts
-
 
 ; read a character from the acia
 acia_get: ; (  -- char )
  @wait_rxd_full:
+    lda ACIA_STATUS
     and #$08
     beq @wait_rxd_full
-    push ACIA_DATA
+    spush
+    lda ACIA_DATA
+    sta 1, x
     rts
-
 
 ; write a character to the acia
 acia_put: ; ( char -- )
@@ -77,12 +70,13 @@ acia_put: ; ( char -- )
     beq @wait_txd_empty
     lda 1, x
     sta ACIA_DATA
-    pop
+    sdrop
     rts
-
 
 ; write a newline to the acia
 acia_put_newline: ; ( -- )
-    push #$0a
+    spush #$00, #$0a
+    spush #$00, #$0d
+    jsr acia_put
     jsr acia_put
     rts
