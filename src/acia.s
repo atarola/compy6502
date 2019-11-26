@@ -35,19 +35,20 @@ acia_write: ; ( addr -- )
 ; will output a null-terminated string
 acia_read: ; ( addr -- )
  @next_char:
-    spush
+    jsr sdup
     jsr acia_get
     lda 1, x
-    cmp $0a
+    cmp #$0a
     beq @eos
-    jsr sswap
-    jsr sstore
+    lda 1, x
+    sta (2, x)
+    sdrop
     sinc
     jmp @next_char
  @eos:
-    sta 1, x
-    jsr sswap
-    jsr sstore
+    lda #$00
+    sta (2, x)
+    sdrop
     sdrop
     rts
 
