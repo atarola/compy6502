@@ -11,20 +11,10 @@
 
 .code
 
-; push items to the stack, with optional values
-.macro spush low, high
-    pha
+; pushes an empty value on the stack
+.macro spush
     dex
- .ifnblank high
-    lda high
-    sta 0, x
- .endif
     dex
- .ifnblank low
-    lda low
-    sta 0, x
- .endif
-    pla
 .endmacro
 
 ; remove the top item from the stack

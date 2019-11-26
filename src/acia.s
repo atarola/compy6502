@@ -75,8 +75,12 @@ acia_put: ; ( char -- )
 
 ; write a newline to the acia
 acia_put_newline: ; ( -- )
-    spush #$00, #$0a
-    spush #$00, #$0d
+    spush
+    lda #$0a
+    sta 1, x
     jsr acia_put
+    spush
+    lda #$0d
+    sta 1, x
     jsr acia_put
     rts
