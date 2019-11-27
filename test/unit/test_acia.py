@@ -64,20 +64,37 @@ class TestAciaPut(BaseTest):
 class TestAciaRead(BaseTest):
 
     def test_acia_read(self):
-        test_string = b"the quick brown fox jumps over the lazy dog.\n"
+        test_string = b"The quick brown fox jumps over the lazy dog.\n"
         idx = 0
 
         cpu = self.get_cpu("test_acia_read")
         cpu.memory[ACIA_STATUS] = 0x08
 
-        def next_char(foo):
+        def callback(foo):
             nonlocal idx
             c = test_string[idx]
             idx = idx + 1
             return c
 
-        cpu.memory.subscribe_to_read([ACIA_DATA], next_char)
+        cpu.memory.subscribe_to_read([ACIA_DATA], callback)
         cpu.until_null()
 
         actual = bytearray(cpu.memory[0x6060:0x6060 + len(test_string) - 1])
         self.assertEqual(test_string.rstrip(), actual)
+
+
+class TestAciaRead(BaseTest):
+
+    def test_acia_read(self):
+        output = bytearray()
+
+        cpu = self.get_cpu("test_acia_write")
+        cpu.memory[ACIA_STATUS] = 0x10
+
+        def callback(addr, value):
+            output.append(value)
+
+        cpu.memory.subscribe_to_write([ACIA_DATA], callback)
+        cpu.until_null()
+
+        self.assertEqual(b"The quick brown fox jumps over the lazy dog.\r\n", output)

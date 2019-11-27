@@ -19,9 +19,9 @@ acia_init:
 ; will output a newline-terminated string
 acia_write: ; ( addr -- )
  @next_char:
-    jsr sdup
-    jsr sfetch
-    lda 1, x
+    spush
+    lda (2, x)
+    sta 1, x
     beq @eos
     jsr acia_put
     sinc
@@ -77,11 +77,11 @@ acia_put: ; ( char -- )
 ; write a newline to the acia
 acia_put_newline: ; ( -- )
     spush
-    lda #$0a
+    lda #$0d
     sta 1, x
     jsr acia_put
     spush
-    lda #$0d
+    lda #$0a
     sta 1, x
     jsr acia_put
     rts
