@@ -25,6 +25,8 @@ on_irq:
 on_nmi:
     rti
 
+.rodata
+
 MAIN_PROMPT: .byte "The quick brown fox jumps over the lazy dog.", $00
 
 .segment "VECTORS"

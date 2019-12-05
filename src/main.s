@@ -11,14 +11,24 @@
 ; app entrypoint
 main:
     ldx #$ff
+    jsr acia_init
 
  @loop:
     ; write our cursor
-    spush #<MAIN_PROMPT, #>MAIN_PROMPT
+    spush
+    lda #<MAIN_PROMPT
+    sta 0, x
+    lda #>MAIN_PROMPT
+    sta 1, x
+
     jsr acia_write
 
     ; read
-    spush #<MAIN_BUFFER, #>MAIN_BUFFER
+    spush
+    lda #<MAIN_BUFFER
+    sta 0, x
+    lda #>MAIN_BUFFER
+    sta 1, x
     jsr sdup
     jsr acia_read
 
