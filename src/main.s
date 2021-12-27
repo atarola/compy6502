@@ -4,36 +4,26 @@
 .setcpu "65c02"
 
 .include "stack.s"
-.include "acia.s"
+.include "spi.s"
 
 .code
 
 ; app entrypoint
 main:
-    ldx #$ff
-    jsr acia_init
+    ; setup the hardware and data stacks
+    ldx #$FF
+    txs
+
+    ; setup spi
+    jsr spi_init
+    jsr spi_select_one
+
+    ; send a byte
+    spush
+    jsr spi_send
 
  @loop:
-    ; write our cursor
-    spush
-    lda #<MAIN_PROMPT
-    sta 0, x
-    lda #>MAIN_PROMPT
-    sta 1, x
-
-    jsr acia_write
-
-    ; read
-    spush
-    lda #<MAIN_BUFFER
-    sta 0, x
-    lda #>MAIN_BUFFER
-    sta 1, x
-    jsr sdup
-    jsr acia_read
-
-    ; print
-    jsr acia_write
+    nop
     jmp @loop
 
 ; IRQ handler
@@ -46,11 +36,7 @@ on_nmi:
 
 .bss
 
-MAIN_BUFFER: .res 255
-
 .rodata
-
-MAIN_PROMPT: .byte " --> ", $00
 
 .segment "VECTORS"
 

@@ -22,6 +22,7 @@ class BaseTest(unittest.TestCase):
         return cpu
 
     def get_data(self, filename):
+        subprocess.check_call(['mkdir', '-p', './bin'])
         subprocess.check_call(self.prep(ASSEMBLE, filename))
         subprocess.check_call(self.prep(LINK, filename))
 

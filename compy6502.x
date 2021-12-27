@@ -7,11 +7,11 @@ MEMORY {
         start $0100
         size $100;
 
-    RAM1:
+    RAM:
         start $0200
         size $BD00;
 
-    RAM2:
+    BSS:
         start $D000
         size $1000;
 
@@ -32,7 +32,7 @@ SEGMENTS {
         type zp;
 
     BSS:
-        load RAM2
+        load BSS
         type bss;
 
     CODE:
