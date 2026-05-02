@@ -15,7 +15,7 @@ class BaseTest(unittest.TestCase):
         start, data = self.get_data(filename)
 
         self.memory = ObservableMemory()
-        self.memory[0xf000:0xffff] = data
+        self.memory[0x8000:0xffff] = data
 
         cpu = TestMPU(self.memory, start)
         cpu.reset()
@@ -30,7 +30,7 @@ class BaseTest(unittest.TestCase):
             output = f.read()
 
         # create our start position
-        start = int.from_bytes(output[0x0ffc:0xffe], byteorder="little")
+        start = int.from_bytes(output[0x7ffc:0x7ffe], byteorder="little")
         return (start, output)
 
     def until_null(self, cpu):

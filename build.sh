@@ -1,4 +1,4 @@
-#!/usr/bin/env bash -e
+#!/usr/bin/env bash
 
 # create the build directories if they don't exist
 mkdir -p ./build

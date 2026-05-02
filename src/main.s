@@ -1,43 +1,36 @@
-;
-; main file
-;
 .setcpu "65c02"
 
-.include "stack.s"
-.include "spi.s"
-
 .code
-
-; app entrypoint
 main:
-    ; setup the hardware and data stacks
-    ldx #$FF
-    txs
+    ldx #$4C
+    stx $5555
 
-    ; setup spi
-    jsr spi_init
-    jsr spi_select_one
+    ldx #$AA
+    stx $5556
+    stx $5557
 
-    ; send a byte
-    spush
-    jsr spi_send
+    ldx #$4C
+    stx $AAAA
 
- @loop:
-    nop
-    jmp @loop
+    ldx #$55
+    stx $AAAB
 
-; IRQ handler
+    ldx #$C5
+    stx $AAAC
+
+    jmp $5555
+
 on_irq:
     rti
 
-; NMI handler
 on_nmi:
     rti
 
-.bss
+.segment "TEST_C555"
+.byte $4C, $AA, $DA
 
-.rodata
+.segment "TEST_DAAA"
+.byte $4C, $55, $55
 
 .segment "VECTORS"
-
 .addr on_nmi, main, on_irq

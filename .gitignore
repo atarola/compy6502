@@ -2,3 +2,11 @@ bin/
 build/
 .DS_Store
 __pycache__
+
+# kicad ignores 
+.history
+production
+*-backups
+fabrication-toolkit-options.json
+fp-lib-table
+DRC.rpt

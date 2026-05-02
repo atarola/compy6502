@@ -1,50 +1,11 @@
 MEMORY {
-    ZEROPAGE:
-        start $0000
-        size $100;
-
-    HSTACK:
-        start $0100
-        size $100;
-
-    RAM:
-        start $0200
-        size $BD00;
-
-    BSS:
-        start $D000
-        size $1000;
-
-    EXT:
-        start $E000
-        size $1000;
-
-    ROM:
-        start $F000
-        size $8000
-        fill yes
-        file %O;
+    ROM:     start = $8000, size = $7FFA, fill = yes, file = %O;
+    VECTORS: start = $FFFA, size = $0006, fill = yes, file = %O;
 }
 
 SEGMENTS {
-    ZEROPAGE:
-        load ZEROPAGE
-        type zp;
-
-    BSS:
-        load BSS
-        type bss;
-
-    CODE:
-        load ROM
-        type ro;
-
-    RODATA:
-        load ROM
-        type ro;
-
-    VECTORS:
-        load ROM
-        type ro
-        start $FFFA;
+    TEST_C555: load ROM type ro start $C555;
+    CODE: load ROM type ro start $D000;
+    TEST_DAAA: load ROM type ro start $DAAA;
+    VECTORS: load VECTORS type ro;
 }

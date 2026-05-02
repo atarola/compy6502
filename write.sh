@@ -1,3 +1,3 @@
-#!/usr/bin/env bash -e
+#!/usr/bin/env bash
 
-minipro -p AT28C256 -w ./bin/compy6502.bin
+sudo /home/linuxbrew/.linuxbrew/bin/minipro -p AT28C256 -w ./bin/compy6502.bin
