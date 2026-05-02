@@ -30,9 +30,8 @@ $C080-$C0BF  IO2B
 $C0C0-$C0FF  IO3B
 ```
 
-The current linker script still maps ROM from `$8000-$FFFF` for bring-up. That
-is a temporary convenience and should eventually be changed to the final
-`$C100-$FFFF` ROM region while keeping vectors at `$FFFA-$FFFF`.
+The linker script currently uses `$8000-$FFFF` as the 32 KB EEPROM image range
+so CPU addresses map directly to the correct physical offsets on the chip.
 
 ## TODO
 

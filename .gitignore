@@ -1,7 +1,11 @@
 bin/
 build/
+.venv/
+.uv-cache/
 .DS_Store
 __pycache__
+.pytest_cache/
+.ruff_cache/
 
 # kicad ignores 
 .history
