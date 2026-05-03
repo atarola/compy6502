@@ -1,11 +1,11 @@
 MEMORY {
-    ROM:     start = $8000, size = $7FFA, fill = yes, file = %O;
-    VECTORS: start = $FFFA, size = $0006, fill = yes, file = %O;
+    ROM: start = $8000, size = $8000, type = ro, fill = yes, file = %O;
 }
 
 SEGMENTS {
-    TEST_C555: load ROM type ro start $C555;
-    CODE: load ROM type ro start $D000;
-    TEST_DAAA: load ROM type ro start $DAAA;
-    VECTORS: load VECTORS type ro;
+    JUMPTABLE: load = ROM, type = ro, start = $C100;
+    KERNEL:    load = ROM, type = ro, start = $C200;
+    MONITOR:   load = ROM, type = ro, start = $E000;
+    WOZMON:    load = ROM, type = ro, start = $F000;
+    VECTORS:   load = ROM, type = ro, start = $FFFA;
 }
