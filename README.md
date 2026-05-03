@@ -33,6 +33,30 @@ $C0C0-$C0FF  IO3B
 The linker script currently uses `$8000-$FFFF` as the 32 KB EEPROM image range
 so CPU addresses map directly to the correct physical offsets on the chip.
 
+## ROM Layout
+
+The intended ROM organization is:
+
+```text
+$C100-$C1FF  public jump table
+$C200-$DFFF  kernel routines and drivers
+$E000-$EFFF  enhanced monitor
+$F000-$FFF9  Wozmon fallback monitor
+$FFFA-$FFFF  CPU vectors
+```
+
+The source tree should eventually mirror this layout:
+
+```text
+src/kernel/   jump table, public routines, drivers
+src/monitor/  enhanced monitor
+src/wozmon/   Wozmon and Wozmon-private support routines
+```
+
+Wozmon may call its own private support routines directly. The jump table is
+the stable public ABI for loaded programs, the enhanced monitor, and other ROM
+code.
+
 ## TODO
 
 ### Base Computer
@@ -41,7 +65,8 @@ so CPU addresses map directly to the correct physical offsets on the chip.
 - [ ] Create the ACIA card.
 - [ ] Revise the CPU card.
 - [ ] Revise the ROM card.
-- [ ] Revise the backplane with 8 connectors.
+- [ ] Revise the backplane with 8 connectors and data leds.
+- [ ] Create a front-panel card with reset and clock.
 - [ ] Get new boards manufactured.
 
 ### I/O
