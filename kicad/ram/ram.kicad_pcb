@@ -958,7 +958,7 @@
 			)
 		)
 		(property ki_fp_filters "DIP*W7.62mm* SO14*")
-		(path "/6cb3edff-c755-460c-b825-fcf68da78e5d")
+		(path "/20119bdf-6d6e-49c4-ba7e-d30dd8694ff2")
 		(sheetname "/")
 		(sheetfile "ram.kicad_sch")
 		(units
@@ -6672,7 +6672,7 @@
 			(drill 1)
 			(layers "*.Cu" "*.Mask")
 			(remove_unused_layers no)
-			(net "PHI2")
+			(net "PHI1")
 			(pinfunction "Pin_23_23")
 			(pintype "passive")
 			(uuid "5a5d4100-27d6-43e8-a2e3-69dcf285398b")

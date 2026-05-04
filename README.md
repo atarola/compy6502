@@ -41,7 +41,7 @@ The intended ROM organization is:
 $C100-$C1FF  public jump table
 $C200-$DFFF  kernel routines and drivers
 $E000-$EFFF  enhanced monitor
-$F000-$FFF9  Wozmon fallback monitor
+$F500-$FFF9  Wozmon fallback monitor
 $FFFA-$FFFF  CPU vectors
 ```
 
@@ -61,11 +61,11 @@ code.
 
 ### Base Computer
 
-- [ ] Set up the ACIA design on a breadboard and test it.
+- [x] Set up the ACIA design on a breadboard and test it.
 - [ ] Create the ACIA card.
-- [ ] Revise the CPU card.
-- [ ] Revise the ROM card.
-- [ ] Revise the backplane with 8 connectors and data leds.
+- [x] Revise the CPU card.
+- [x] Revise the ROM card.
+- [x] Revise the backplane.
 - [ ] Create a front-panel card with reset and clock.
 - [ ] Get new boards manufactured.
 

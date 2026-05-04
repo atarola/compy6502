@@ -1,6 +1,7 @@
 ;  The WOZ Monitor for the Apple 1
 ;  Written by Steve Wozniak in 1976
-;  Modified by Ben Eater: https://gist.github.com/beneater/8136c8b7f2fd95ccdd4562a498758217
+;  - Modified by Ben Eater: https://gist.github.com/beneater/8136c8b7f2fd95ccdd4562a498758217
+;  - Modified by @atarola
 
 .include "include/acia.inc"
 
@@ -18,8 +19,7 @@ IN    = $0200                          ; Input buffer
 .export WOZMON_START
 
 WOZMON_START:
-RESET:
-                LDA     #$1F           ; 8-N-1, 19200 baud.
+                lda     #%00011110     ; 8-N-1, 9600 baud
                 STA     ACIA_CONTROL
                 LDA     #$0B           ; No parity, no echo, no interrupts.
                 STA     ACIA_COMMAND
@@ -40,6 +40,8 @@ ESCAPE:
 GETLINE:
                 LDA     #$0D           ; Send CR
                 JSR     ECHO
+                LDA     #$0A           ; Send LF for modern terminals.
+                JSR     ECHO
 
                 LDY     #$01           ; Initialize text index.
 BACKSPACE:      DEY                    ; Back up text index.
@@ -50,6 +52,10 @@ NEXTCHAR:
                 AND     #$08           ; Key ready?
                 BEQ     NEXTCHAR       ; Loop until ready.
                 LDA     ACIA_DATA      ; Load character. B7 will be '0'.
+                CMP     #$7F           ; Delete key?
+                BNE     STORECHAR      ; No.
+                LDA     #$08           ; Treat DEL as backspace.
+STORECHAR:
                 STA     IN,Y           ; Add to text buffer.
                 JSR     ECHO           ; Display character.
                 CMP     #$0D           ; CR?
@@ -135,6 +141,8 @@ NXTPRNT:
                 BNE     PRDATA         ; NE means no address to print.
                 LDA     #$0D           ; CR.
                 JSR     ECHO           ; Output it.
+                LDA     #$0A           ; LF for modern terminals.
+                JSR     ECHO
                 LDA     XAMH           ; 'Examine index' high-order byte.
                 JSR     PRBYTE         ; Output it in hex format.
                 LDA     XAML           ; Low-order 'examine index' byte.

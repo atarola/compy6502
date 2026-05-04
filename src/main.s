@@ -3,7 +3,7 @@
 .code
 
 .segment "KERNEL"
-.include "kernel/kernel.s"
+.include "kernel/vectors.s"
 
 .segment "WOZMON"
 .include "wozmon/wozmon.s"

@@ -3399,7 +3399,7 @@
 			)
 		)
 	)
-	(global_label "PHI2"
+	(global_label "PHI1"
 		(shape input)
 		(at 217.17 102.87 180)
 		(fields_autoplaced yes)
