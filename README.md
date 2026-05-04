@@ -62,7 +62,7 @@ code.
 ### Base Computer
 
 - [x] Set up the ACIA design on a breadboard and test it.
-- [ ] Create the ACIA card.
+- [x] Create the ACIA card.
 - [x] Revise the CPU card.
 - [x] Revise the ROM card.
 - [x] Revise the backplane.
