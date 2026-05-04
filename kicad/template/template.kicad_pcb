@@ -5295,7 +5295,7 @@
 			(drill 1)
 			(layers "*.Cu" "*.Mask")
 			(remove_unused_layers no)
-			(net "PHI2")
+			(net "PHI1")
 			(pinfunction "Pin_23_23")
 			(pintype "passive")
 			(uuid "5a5d4100-27d6-43e8-a2e3-69dcf285398b")
