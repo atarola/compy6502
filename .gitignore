@@ -16,3 +16,4 @@ production
 fabrication-toolkit-options.json
 fp-lib-table
 DRC.rpt
+*.lck
