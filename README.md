@@ -66,7 +66,7 @@ code.
 - [x] Revise the CPU card.
 - [x] Revise the ROM card.
 - [x] Revise the backplane.
-- [ ] Create a front-panel card with reset and clock.
+- [x] Create a front-panel card with reset and clock.
 - [ ] Get new boards manufactured.
 
 ### I/O
