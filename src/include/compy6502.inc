@@ -1,5 +1,9 @@
 ;
-; ACIA Constants
+; compy6502 public constants
+;
+
+;
+; ACIA
 ;
 
 ACIA_BASE           = $C000

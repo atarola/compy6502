@@ -3,7 +3,7 @@
 ;  - Modified by Ben Eater: https://gist.github.com/beneater/8136c8b7f2fd95ccdd4562a498758217
 ;  - Modified by @atarola
 
-.include "include/acia.inc"
+.include "include/compy6502.inc"
 
 XAML  = $24                            ; Last "opened" location Low
 XAMH  = $25                            ; Last "opened" location High
