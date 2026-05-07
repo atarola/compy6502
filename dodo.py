@@ -1,10 +1,148 @@
-DOIT_CONFIG = {
-    "default_tasks": ["build", "test"],
-}
+from pathlib import Path
+import subprocess
 
 
-def task_build():
+FPGA_PART = "lp8k"
+FPGA_PACKAGE = "cm81"
+FPGA_FREQ_MHZ = "16"
+
+
+def fpga_targets():
+    root = Path("src/fpga")
+    return sorted(path.name for path in root.iterdir() if path.is_dir())
+
+
+def run(*cmd):
+    subprocess.run(cmd, check=True)
+
+
+def fpga_paths(target):
+    src_dir = Path("src/fpga") / target
+    build_dir = Path("build/fpga") / target
+
     return {
+        "src_dir": src_dir,
+        "build_dir": build_dir,
+        "top": src_dir / "top.v",
+        "tb": src_dir / "tb.v",
+        "pins": src_dir / "pins.pcf",
+        "vvp": build_dir / f"{target}.vvp",
+        "json": build_dir / f"{target}.json",
+        "asc": build_dir / f"{target}.asc",
+        "bin": build_dir / f"{target}.bin",
+    }
+
+
+def require_files(paths, *names):
+    missing = [str(paths[name]) for name in names if not paths[name].exists()]
+    if missing:
+        raise FileNotFoundError("missing FPGA input files: " + ", ".join(missing))
+
+
+def fpga_sim(paths):
+    require_files(paths, "tb", "top")
+    run("iverilog", "-g2012", "-o", paths["vvp"], paths["tb"], paths["top"])
+    run("vvp", paths["vvp"])
+
+
+def fpga_synth(paths):
+    require_files(paths, "top")
+    run(
+        "yosys",
+        "-p",
+        f"read_verilog -sv {paths['top']}; synth_ice40 -top top -json {paths['json']}",
+    )
+
+
+def fpga_pnr(paths):
+    require_files(paths, "pins", "json")
+    run(
+        "nextpnr-ice40",
+        f"--{FPGA_PART}",
+        "--package",
+        FPGA_PACKAGE,
+        "--freq",
+        FPGA_FREQ_MHZ,
+        "--pcf",
+        paths["pins"],
+        "--json",
+        paths["json"],
+        "--asc",
+        paths["asc"],
+    )
+
+
+def fpga_pack(paths):
+    require_files(paths, "asc")
+    run("icepack", paths["asc"], paths["bin"])
+
+
+def fpga_build(paths):
+    fpga_synth(paths)
+    fpga_pnr(paths)
+    fpga_pack(paths)
+
+
+def run_fpga_target(target, action):
+    actions = {
+        "sim": fpga_sim,
+        "synth": fpga_synth,
+        "pnr": fpga_pnr,
+        "pack": fpga_pack,
+        "build": fpga_build,
+    }
+
+    if action not in actions:
+        valid_actions = ", ".join([*actions.keys(), "program"])
+        raise ValueError(f"unknown FPGA action {action!r}; expected one of: {valid_actions}")
+
+    paths = fpga_paths(target)
+    paths["build_dir"].mkdir(parents=True, exist_ok=True)
+    actions[action](paths)
+
+
+def run_fpga(action, target):
+    if action == "program":
+        if not target:
+            raise ValueError("programming requires an explicit target, for example: uv run doit fpga:program -t blink")
+
+        paths = fpga_paths(target)
+        paths["build_dir"].mkdir(parents=True, exist_ok=True)
+        fpga_build(paths)
+        run("tinyprog", "-p", paths["bin"])
+        return
+
+    targets = [target] if target else fpga_targets()
+    if not targets:
+        raise ValueError("no FPGA targets found under src/fpga/")
+
+    for fpga_target in targets:
+        run_fpga_target(fpga_target, action)
+
+
+def task_fpga():
+    params = [
+        {
+            "name": "target",
+            "short": "t",
+            "long": "target",
+            "default": "",
+            "help": "FPGA target under src/fpga/. Defaults to all targets except for program.",
+        },
+    ]
+
+    for action in ("sim", "synth", "pnr", "pack", "build", "program"):
+        yield {
+            "name": action,
+            "params": params,
+            "actions": [(run_fpga, [action])],
+            "verbosity": 2,
+        }
+
+
+def task_asm():
+    yield {
+        "name": "build",
         "actions": ["./src/asm/build.sh"],
         "file_dep": [
             "src/asm/build.sh",
@@ -17,9 +155,8 @@ def task_build():
         "targets": ["bin/compy6502.bin"],
     }
 
-
-def task_test():
-    return {
+    yield {
+        "name": "test",
         "actions": ["uv run pytest"],
-        "task_dep": ["build"],
+        "task_dep": ["asm:build"],
     }
