@@ -93,7 +93,7 @@ def run_fpga_target(target, action):
     }
 
     if action not in actions:
-        valid_actions = ", ".join([*actions.keys(), "program"])
+        valid_actions = ", ".join(actions.keys())
         raise ValueError(f"unknown FPGA action {action!r}; expected one of: {valid_actions}")
 
     paths = fpga_paths(target)
@@ -102,16 +102,6 @@ def run_fpga_target(target, action):
 
 
 def run_fpga(action, target):
-    if action == "program":
-        if not target:
-            raise ValueError("programming requires an explicit target, for example: uv run doit fpga:program -t blink")
-
-        paths = fpga_paths(target)
-        paths["build_dir"].mkdir(parents=True, exist_ok=True)
-        fpga_build(paths)
-        run("tinyprog", "-p", paths["bin"])
-        return
-
     targets = [target] if target else fpga_targets()
     if not targets:
         raise ValueError("no FPGA targets found under src/fpga/")
@@ -131,7 +121,7 @@ def task_fpga():
         },
     ]
 
-    for action in ("sim", "synth", "pnr", "pack", "build", "program"):
+    for action in ("sim", "synth", "pnr", "pack", "build"):
         yield {
             "name": action,
             "params": params,

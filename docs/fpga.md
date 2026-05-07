@@ -24,21 +24,37 @@ The important tools are:
 GTKWave is the traditional waveform viewer, but the Homebrew cask is currently
 disabled. Use Surfer for waveform viewing unless that changes.
 
-## TinyFPGA Programming
+## TinyFPGA Programming From Windows
 
-Homebrew does not appear to provide a current `tinyprog` formula. Install it
-with Python tooling instead:
+Build bitstreams from WSL/Ubuntu, but program the TinyFPGA BX from Windows.
+WSL USB passthrough is unreliable with the BX bootloader timing.
 
-```sh
-brew install pipx
+Install `tinyprog` in Windows PowerShell:
+
+```powershell
+py -m pip install --user pipx
+py -m pipx ensurepath
 pipx install tinyprog
+tinyprog --help
 ```
 
-If `pipx` is not available, a user-local `pip` install is another option:
+Close and reopen PowerShell after `ensurepath` if `pipx` is not found.
+
+Build the FPGA target in WSL:
 
 ```sh
-python3 -m pip install --user tinyprog
+uv run doit fpga:build -t blink
 ```
+
+Press reset on the TinyFPGA BX so the bootloader is active, then program the
+bitstream from Windows:
+
+```powershell
+tinyprog -p "\\wsl.localhost\Ubuntu\home\atarola\code\compy6502\build\fpga\blink\blink.bin"
+```
+
+The USB serial device can disappear after programming because the bitstream
+disables `USBPU`. Press reset before the next upload.
 
 ## Expected Flow
 
@@ -47,7 +63,6 @@ The normal edit/build/check loop is managed through `doit`:
 ```sh
 uv run doit fpga:sim
 uv run doit fpga:build
-uv run doit fpga:program -t blink
 ```
 
 By default, non-programming actions run against all targets under `src/fpga/`.
@@ -56,10 +71,7 @@ Use `-t` to select one target:
 ```sh
 uv run doit fpga:sim -t blink
 uv run doit fpga:build -t blink
-uv run doit fpga:program -t blink
 ```
-
-Programming always requires an explicit target.
 
 Supported FPGA actions are:
 
@@ -68,7 +80,21 @@ Supported FPGA actions are:
 - `pnr`: place and route with `nextpnr-ice40`.
 - `pack`: pack the routed design with `icepack`.
 - `build`: run `synth`, `pnr`, and `pack`.
-- `program`: run `build`, then upload with `tinyprog`.
+
+The final bitstream for a target is written to:
+
+```text
+build/fpga/<target>/<target>.bin
+```
+
+For the blink target:
+
+```text
+build/fpga/blink/blink.bin
+```
+
+Program the TinyFPGA BX from Windows with `tinyprog` rather than passing USB
+through WSL.
 
 Conceptually, the flow is:
 
