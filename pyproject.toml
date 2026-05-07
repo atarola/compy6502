@@ -13,7 +13,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["test"]
+testpaths = ["test/asm"]
 pythonpath = ["test"]
 
 [tool.ruff]

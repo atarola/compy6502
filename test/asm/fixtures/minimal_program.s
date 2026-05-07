@@ -1,6 +1,6 @@
 .setcpu "65c02"
 
-.code
+.segment "KERNEL"
 
 ; app entrypoint
 main:

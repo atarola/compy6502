@@ -5,7 +5,7 @@
 Assembles a ca65 source file and prints Wozmon-ready hex records.
 
 ```bash
-tools/wozmon-hex.py --run 4000 test/wozmon/hello.s
+tools/wozmon-hex.py --run 4000 test/asm/wozmon/hello.s
 ```
 
 Example output:
@@ -28,14 +28,14 @@ The default output width is 5 bytes per line for easier hand checking.
 Refresh the checked-in Wozmon paste file:
 
 ```bash
-tools/wozmon-hex.py --run 4000 test/wozmon/hello.s > test/wozmon/hello.w
+tools/wozmon-hex.py --run 4000 test/asm/wozmon/hello.s > test/asm/wozmon/hello.w
 ```
 
 Useful options:
 
 ```bash
-tools/wozmon-hex.py --run 4000 --columns 8 test/wozmon/hello.s
-tools/wozmon-hex.py --cpu 65c02 test/wozmon/hello.s
+tools/wozmon-hex.py --run 4000 --columns 8 test/asm/wozmon/hello.s
+tools/wozmon-hex.py --cpu 65c02 test/asm/wozmon/hello.s
 ```
 
 The source can use `.org` to place separate data/code ranges. Contiguous ranges are coalesced and printed as separate Wozmon records.

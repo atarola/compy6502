@@ -1,12 +1,13 @@
 
 import subprocess
 import unittest
+from pathlib import Path
 
 from py65.devices import mpu65c02
 from py65.memory import ObservableMemory
 
-ASSEMBLE = "ca65 -I ./src -o ./test/bin/{0}.o ./test/asm/{0}.s"
-LINK = "ld65 -C ./compy6502.x -o ./test/bin/{0}.bin ./test/bin/{0}.o"
+ASSEMBLE = "ca65 -I ./src/asm -I ./src -o ./test/asm/bin/{0}.o ./test/asm/{0}.s"
+LINK = "ld65 -C ./compy6502.x -o ./test/asm/bin/{0}.bin ./test/asm/bin/{0}.o"
 
 
 class BaseTest(unittest.TestCase):
@@ -22,11 +23,11 @@ class BaseTest(unittest.TestCase):
         return cpu
 
     def get_data(self, filename):
-        subprocess.check_call(['mkdir', '-p', './test/bin'])
+        Path("./test/asm/bin", filename).parent.mkdir(parents=True, exist_ok=True)
         subprocess.check_call(self.prep(ASSEMBLE, filename))
         subprocess.check_call(self.prep(LINK, filename))
 
-        with open("./test/bin/{0}.bin".format(filename), "rb") as f:
+        with open("./test/asm/bin/{0}.bin".format(filename), "rb") as f:
             output = f.read()
 
         # create our start position

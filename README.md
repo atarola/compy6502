@@ -45,18 +45,6 @@ $F500-$FFF9  Wozmon fallback monitor
 $FFFA-$FFFF  CPU vectors
 ```
 
-The source tree should eventually mirror this layout:
-
-```text
-src/kernel/   jump table, public routines, drivers
-src/monitor/  enhanced monitor
-src/wozmon/   Wozmon and Wozmon-private support routines
-```
-
-Wozmon may call its own private support routines directly. The jump table is
-the stable public ABI for loaded programs, the enhanced monitor, and other ROM
-code.
-
 ## TODO
 
 ### Base Computer
@@ -67,7 +55,7 @@ code.
 - [x] Revise the ROM card.
 - [x] Revise the backplane.
 - [x] Create a front-panel card with reset and clock.
-- [ ] Get new boards manufactured.
+- [x] Get new boards manufactured.
 
 ### I/O
 

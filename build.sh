@@ -8,5 +8,5 @@ mkdir -p ./bin
 rm -rf ./build/*
 rm -rf ./bin/*
 
-ca65 -I ./src -o ./build/compy6502.o ./src/main.s
+ca65 -I ./src/asm -I ./src -o ./build/compy6502.o ./src/asm/main.s
 ld65 -C compy6502.x -o ./bin/compy6502.bin ./build/compy6502.o

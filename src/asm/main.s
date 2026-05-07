@@ -6,7 +6,7 @@
 .include "kernel/vectors.s"
 
 .segment "WOZMON"
-.include "wozmon/wozmon.s"
+.include "wozmon.s"
 
 .segment "VECTORS"
 .addr NMI_HANDLER
