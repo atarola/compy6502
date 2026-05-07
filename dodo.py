@@ -19,14 +19,17 @@ def run(*cmd):
 def fpga_paths(target):
     src_dir = Path("src/fpga") / target
     build_dir = Path("build/fpga") / target
+    verilog_files = sorted(src_dir.glob("*.v"))
+    testbenches = sorted(src_dir.glob("*.tb.v"))
 
     return {
         "src_dir": src_dir,
         "build_dir": build_dir,
         "top": src_dir / "top.v",
-        "tb": src_dir / "tb.v",
+        "verilog_files": verilog_files,
+        "design_files": [path for path in verilog_files if not path.name.endswith(".tb.v")],
+        "testbenches": testbenches,
         "pins": src_dir / "pins.pcf",
-        "vvp": build_dir / f"{target}.vvp",
         "json": build_dir / f"{target}.json",
         "asc": build_dir / f"{target}.asc",
         "bin": build_dir / f"{target}.bin",
@@ -40,9 +43,14 @@ def require_files(paths, *names):
 
 
 def fpga_sim(paths):
-    require_files(paths, "tb", "top")
-    run("iverilog", "-g2012", "-o", paths["vvp"], paths["tb"], paths["top"])
-    run("vvp", paths["vvp"])
+    require_files(paths, "top")
+    if not paths["testbenches"]:
+        raise FileNotFoundError(f"no FPGA testbenches found under {paths['src_dir']}/*.tb.v")
+
+    for testbench in paths["testbenches"]:
+        output = paths["build_dir"] / f"{testbench.stem}.vvp"
+        run("iverilog", "-g2012", "-o", output, testbench, *paths["design_files"])
+        run("vvp", output)
 
 
 def fpga_synth(paths):
@@ -50,7 +58,9 @@ def fpga_synth(paths):
     run(
         "yosys",
         "-p",
-        f"read_verilog -sv {paths['top']}; synth_ice40 -top top -json {paths['json']}",
+        "read_verilog -sv "
+        + " ".join(str(path) for path in paths["design_files"])
+        + f"; synth_ice40 -top top -json {paths['json']}",
     )
 
 
