@@ -7,7 +7,7 @@ from py65.devices import mpu65c02
 from py65.memory import ObservableMemory
 
 ASSEMBLE = "ca65 -I ./src/asm -I ./src -o ./test/asm/bin/{0}.o ./test/asm/{0}.s"
-LINK = "ld65 -C ./compy6502.x -o ./test/asm/bin/{0}.bin ./test/asm/bin/{0}.o"
+LINK = "ld65 -C ./src/asm/compy6502.x -o ./test/asm/bin/{0}.bin ./test/asm/bin/{0}.o"
 
 
 class BaseTest(unittest.TestCase):
