@@ -1,6 +1,6 @@
 `timescale 1ns/1ps
 
-module tb;
+module blink_tb;
     reg CLK = 0;
     wire LED;
     wire USBPU;
@@ -18,7 +18,7 @@ module tb;
 
     initial begin
         $dumpfile("build/fpga/blink/blink.vcd");
-        $dumpvars(0, tb);
+        $dumpvars(0, blink_tb);
 
         repeat (256) @(posedge CLK);
         $finish;

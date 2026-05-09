@@ -20,14 +20,14 @@ def fpga_paths(target):
     src_dir = Path("src/fpga") / target
     build_dir = Path("build/fpga") / target
     verilog_files = sorted(src_dir.glob("*.v"))
-    testbenches = sorted(src_dir.glob("*.tb.v"))
+    testbenches = sorted(src_dir.glob("*_tb.v"))
 
     return {
         "src_dir": src_dir,
         "build_dir": build_dir,
         "top": src_dir / "top.v",
         "verilog_files": verilog_files,
-        "design_files": [path for path in verilog_files if not path.name.endswith(".tb.v")],
+        "design_files": [path for path in verilog_files if not path.name.endswith("_tb.v")],
         "testbenches": testbenches,
         "pins": src_dir / "pins.pcf",
         "json": build_dir / f"{target}.json",
@@ -45,7 +45,7 @@ def require_files(paths, *names):
 def fpga_sim(paths):
     require_files(paths, "top")
     if not paths["testbenches"]:
-        raise FileNotFoundError(f"no FPGA testbenches found under {paths['src_dir']}/*.tb.v")
+        raise FileNotFoundError(f"no FPGA testbenches found under {paths['src_dir']}/*_tb.v")
 
     for testbench in paths["testbenches"]:
         output = paths["build_dir"] / f"{testbench.stem}.vvp"

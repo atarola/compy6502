@@ -87,11 +87,11 @@ Target directories use this layout:
 src/fpga/<target>/
   top.v
   pins.pcf
-  *.tb.v
+  *_tb.v
   other_design_modules.v
 ```
 
-`fpga:sim` runs every `*.tb.v` testbench in the target. Synthesis reads all
+`fpga:sim` runs every `*_tb.v` testbench in the target. Synthesis reads all
 `.v` files except testbenches and uses `top` as the top-level module.
 
 The final bitstream for a target is written to:
