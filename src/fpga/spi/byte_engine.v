@@ -69,7 +69,9 @@ module byte_engine (
     end
 
     if (state == StateTransfer) begin
-      if (bit_count == 4'd8) next_state = StateDone;
+      if (bit_count == 4'd8 && !sck) begin
+        next_state = StateDone;
+      end
     end
 
     if (state == StateDone) begin
@@ -85,14 +87,17 @@ module byte_engine (
     end else begin
       state <= next_state;
 
-      if (state == StateTransfer && shift_tick) begin
+      if (state == StateTransfer && shift_tick && (bit_count < 4'd8 || sck)) begin
         sck <= !sck;
         if (!sck) begin
           bit_count <= bit_count + 1;
         end
       end
 
-      if (state == StateDone) bit_count <= 4'd0;
+      if (state == StateDone) begin
+        bit_count <= 4'd0;
+        sck <= 1'b0;
+      end
     end
   end
 endmodule

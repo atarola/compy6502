@@ -39,6 +39,12 @@ module byte_engine_miso_tb;
   always #31.25 clk = ~clk;
 
   initial begin
+    repeat (10000) @(posedge clk);
+    $display("FAIL: timeout");
+    $finish;
+  end
+
+  initial begin
     $dumpfile("build/fpga/spi/byte_engine_miso_tb.vcd");
     $dumpvars(0, byte_engine_miso_tb);
 
