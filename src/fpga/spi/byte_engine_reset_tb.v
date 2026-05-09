@@ -14,27 +14,23 @@ module byte_engine_reset_tb;
   reg resb = 1;
   reg start = 0;
   reg [7:0] tx_data = 8'h00;
-  reg [1:0] cs_select = 2'b00;
   reg miso = 0;
 
   wire [7:0] rx_data;
   wire busy;
   wire sck;
   wire mosi;
-  wire [3:0] spi_csb;
 
   byte_engine uut (
       .clk(clk),
       .resb(resb),
       .start(start),
       .tx_data(tx_data),
-      .cs_select(cs_select),
       .rx_data(rx_data),
       .busy(busy),
       .sck(sck),
       .mosi(mosi),
-      .miso(miso),
-      .spi_csb(spi_csb)
+      .miso(miso)
   );
 
   always #31.25 clk = ~clk;
@@ -52,7 +48,6 @@ module byte_engine_reset_tb;
     resb = 1;
     start = 0;
     tx_data = 8'hA5;
-    cs_select = 2'b00;
     miso = 0;
 
     // quick reset

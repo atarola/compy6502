@@ -5,13 +5,11 @@ module byte_engine (
     input resb,
     input start,
     input [7:0] tx_data,
-    input [1:0] cs_select,
     output [7:0] rx_data,
     output reg busy,
     output reg sck,
     output mosi,
-    input miso,
-    output reg [3:0] spi_csb
+    input miso
 );
   localparam reg [1:0] StateIdle = 2'b00;
   localparam reg [1:0] StateLoad = 2'b01;

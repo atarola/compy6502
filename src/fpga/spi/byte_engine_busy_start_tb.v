@@ -7,4 +7,94 @@
  * design explicitly adds queuing.
  */
 module byte_engine_busy_start_tb;
+  reg clk = 0;
+  reg resb = 1;
+  reg start = 0;
+  reg [7:0] tx_data = 8'h00;
+  reg miso = 0;
+  reg [7:0] out_bits;
+
+  wire [7:0] rx_data;
+  wire busy;
+  wire sck;
+  wire mosi;
+
+  byte_engine uut (
+      .clk(clk),
+      .resb(resb),
+      .start(start),
+      .tx_data(tx_data),
+      .rx_data(rx_data),
+      .busy(busy),
+      .sck(sck),
+      .mosi(mosi),
+      .miso(miso)
+  );
+
+  always #31.25 clk = ~clk;
+
+  initial begin
+    repeat (10000) @(posedge clk);
+    $display("FAIL: timeout");
+    $finish;
+  end
+
+  initial begin
+    $dumpfile("build/fpga/spi/byte_engine_busy_start_tb.vcd");
+    $dumpvars(0, byte_engine_busy_start_tb);
+
+    resb = 1;
+    start = 0;
+    tx_data = 8'h55;
+    out_bits = 8'h00;
+
+    // Reset the engine before starting the transfer.
+    @(posedge clk);
+    resb = 0;
+
+    @(posedge clk);
+    resb = 1;
+
+    @(negedge clk);
+    start = 1;
+
+    @(negedge clk);
+    start = 0;
+
+    // let the first clock edge fire
+    @(posedge sck);
+    #1;
+    out_bits = {out_bits[6:0], mosi};
+
+    if (!busy) begin
+      $display("FAIL: expected engine to be busy");
+      $finish;
+    end
+
+    @(negedge clk);
+    tx_data = 8'hAA;
+    start   = 1;
+
+    @(negedge clk);
+    start = 0;
+
+    // Sample the MOSI bit after each rising edge.
+    repeat (7) begin
+      @(posedge sck);
+      #1;
+      out_bits = {out_bits[6:0], mosi};
+    end
+
+    // Wait until the engine returns to idle.
+    wait (!busy);
+    if (out_bits !== 8'h55) begin
+      $display("FAIL: expected out_bits to be 8b'01010101 from mosi, got %b", out_bits);
+      $finish;
+    end
+
+    @(posedge clk);
+
+    $display("PASS");
+    $finish;
+  end
 endmodule

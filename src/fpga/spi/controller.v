@@ -50,13 +50,11 @@ module controller (
       .resb(resb),
       .start(start_transfer),
       .tx_data(tx_data),
-      .cs_select(conf[1:0]),
       .rx_data(rx_data),
       .busy(engine_busy),
       .sck(sck),
       .mosi(mosi),
-      .miso(miso),
-      .spi_csb(spi_csb)
+      .miso(miso)
   );
 
   always @(*) begin
