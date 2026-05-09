@@ -3,8 +3,8 @@
 /**
  * Spec: byte_engine MISO receive order.
  *
- * Verify that MISO is sampled most-significant bit first during a transfer and
- * the received byte appears on rx_data after the byte completes.
+ * Verify that MISO is sampled on each SCK rising edge and the received byte
+ * appears on rx_data after the byte completes.
  */
 module byte_engine_miso_tb;
   reg clk = 0;
@@ -48,44 +48,35 @@ module byte_engine_miso_tb;
     cs_select = 2'b00;
     miso = 0;
 
-    // quick reset
+    // Reset the engine before starting the transfer.
     @(posedge clk);
     resb = 0;
 
     @(posedge clk);
     resb = 1;
 
-    // Start one transfer
-    @(posedge clk);
+    @(negedge clk);
     start = 1;
     miso  = 1;
 
-    @(posedge clk);
+    @(negedge clk);
     start = 0;
 
-    // wait for the engine to turn once
-    @(posedge sck);
+    // Drive the next MISO bit after each sample edge.
+    repeat (8) begin
+      @(posedge sck);
+      #1;
+      miso = ~miso;
+    end
+
     @(posedge clk);
     #1;
-    if (rx_data !== 8'h01) begin
-      $display("FAIL: expected rx_data to have data from miso, got %b", rx_data);
+    if (rx_data !== 8'hAA) begin
+      $display("FAIL: expected rx_data to be 8b'10101010 from miso, got %b", rx_data);
       $finish;
     end
 
-    // do a reset
     @(posedge clk);
-    resb = 0;
-
-    @(posedge clk);
-    resb = 1;
-
-    // lets see it clear
-    @(posedge clk);
-    #1;
-    if (rx_data !== 8'h00) begin
-      $display("FAIL: expected rx_data to have no data, got %b", rx_data);
-      $finish;
-    end
 
     $display("PASS");
     $finish;

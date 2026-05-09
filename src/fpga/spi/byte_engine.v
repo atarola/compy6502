@@ -20,14 +20,15 @@ module byte_engine (
   localparam reg [1:0] StateDone = 2'b11;
 
   reg load_enable;
-  reg piso_shift_enable;
-  reg sipo_shift_enable;
   reg [1:0] state;
   reg [1:0] next_state;
   reg [3:0] bit_count;
   reg [5:0] clk_div;
   reg div_resb;
+
   wire shift_tick = (clk_div == 6'b111111);
+  wire sipo_shift_now = state == StateTransfer && shift_tick && sck == 0;
+  wire piso_shift_now = state == StateTransfer && shift_tick && sck == 1;
 
   binary_counter clock_divider (
       .clk  (clk),
@@ -39,7 +40,7 @@ module byte_engine (
       .clk(clk),
       .resb(resb),
       .load_enable(load_enable),
-      .shift_enable(piso_shift_enable),
+      .shift_enable(piso_shift_now),
       .parallel_in(tx_data),
       .serial_out(mosi)
   );
@@ -48,7 +49,7 @@ module byte_engine (
       .clk(clk),
       .resb(resb),
       .serial_in(miso),
-      .shift_enable(sipo_shift_enable),
+      .shift_enable(sipo_shift_now),
       .parallel_out(rx_data)
   );
 
@@ -81,19 +82,12 @@ module byte_engine (
       state <= StateIdle;
       sck <= 1'b0;
       bit_count <= 4'd0;
-      piso_shift_enable <= 1'b0;
-      sipo_shift_enable <= 1'b0;
     end else begin
-      piso_shift_enable <= 1'b0;
-      sipo_shift_enable <= 1'b0;
       state <= next_state;
 
       if (state == StateTransfer && shift_tick) begin
         sck <= !sck;
-
-        if (sck) piso_shift_enable <= 1'b1;
         if (!sck) begin
-          sipo_shift_enable <= 1'b1;
           bit_count <= bit_count + 1;
         end
       end

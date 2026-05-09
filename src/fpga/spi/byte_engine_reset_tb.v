@@ -90,6 +90,8 @@ module byte_engine_reset_tb;
       $finish;
     end
 
+    #90;
+
     $display("PASS");
     $finish;
   end
