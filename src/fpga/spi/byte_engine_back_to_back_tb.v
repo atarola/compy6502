@@ -76,8 +76,7 @@ module byte_engine_back_to_back_tb;
       miso = ~miso;
     end
 
-    @(posedge clk);
-    #1;
+    wait (!busy);
     if (out_bits !== 8'h55) begin
       $display("FAIL: expected out_bits to be 8b'01010101 from mosi, got %b", out_bits);
       $finish;
@@ -88,10 +87,7 @@ module byte_engine_back_to_back_tb;
       $finish;
     end
 
-    // give it a pause
-    @(negedge sck);
-    @(posedge clk);
-    @(posedge clk);
+    // Wait until the engine returns to idle.
     @(negedge clk);
     start = 1;
     miso = 0;
@@ -109,8 +105,7 @@ module byte_engine_back_to_back_tb;
       miso = ~miso;
     end
 
-    @(posedge clk);
-    #1;
+    wait (!busy);
     if (out_bits !== 8'hAA) begin
       $display("FAIL: expected out_bits to be 8b'10101010 from mosi, got %b", out_bits);
       $finish;

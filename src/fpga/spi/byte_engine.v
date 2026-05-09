@@ -54,6 +54,7 @@ module byte_engine (
 
   always @(*) begin
     next_state = state;
+    busy = state != StateIdle || start;
     load_enable = 1'b0;
     div_resb = 1'b1;
 

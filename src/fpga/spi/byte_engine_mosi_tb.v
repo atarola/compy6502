@@ -73,8 +73,8 @@ module byte_engine_mosi_tb;
       out_bits = {out_bits[6:0], mosi};
     end
 
-    @(posedge clk);
-    #1;
+    // Wait until the engine returns to idle.
+    wait (!busy);
     if (out_bits !== 8'hA5) begin
       $display("FAIL: expected out_bits to be 8b'10100101 from mosi, got %b", out_bits);
       $finish;

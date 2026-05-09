@@ -75,7 +75,6 @@ module byte_engine_miso_tb;
 
     // Wait until the engine returns to idle.
     wait (!busy);
-
     if (rx_data !== 8'hAA) begin
       $display("FAIL: expected rx_data to be 8b'10101010 from miso, got %b", rx_data);
       $finish;
