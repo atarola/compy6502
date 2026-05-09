@@ -16,7 +16,6 @@ module byte_engine_miso_tb;
 
   wire [7:0] rx_data;
   wire busy;
-  wire done;
   wire sck;
   wire mosi;
   wire [3:0] spi_csb;
@@ -29,7 +28,6 @@ module byte_engine_miso_tb;
       .cs_select(cs_select),
       .rx_data(rx_data),
       .busy(busy),
-      .done(done),
       .sck(sck),
       .mosi(mosi),
       .miso(miso),
@@ -75,8 +73,9 @@ module byte_engine_miso_tb;
       miso = ~miso;
     end
 
-    @(posedge clk);
-    #1;
+    // Wait until the engine returns to idle.
+    wait (!busy);
+
     if (rx_data !== 8'hAA) begin
       $display("FAIL: expected rx_data to be 8b'10101010 from miso, got %b", rx_data);
       $finish;

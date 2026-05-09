@@ -4,10 +4,10 @@
  * Spec: byte_engine reset and idle defaults.
  *
  * Verify that reset leaves the engine idle: SCK low, all chip selects inactive,
- * not busy, not done, and receive data cleared or otherwise deterministic.
+ * not busy, and receive data cleared or otherwise deterministic.
  *
- * TODO: Add explicit checks for spi_csb, busy, and done once byte_engine drives
- * those outputs.
+ * TODO: Add explicit checks for spi_csb and busy once byte_engine drives those
+ * outputs.
  */
 module byte_engine_reset_tb;
   reg clk = 0;
@@ -19,7 +19,6 @@ module byte_engine_reset_tb;
 
   wire [7:0] rx_data;
   wire busy;
-  wire done;
   wire sck;
   wire mosi;
   wire [3:0] spi_csb;
@@ -32,7 +31,6 @@ module byte_engine_reset_tb;
       .cs_select(cs_select),
       .rx_data(rx_data),
       .busy(busy),
-      .done(done),
       .sck(sck),
       .mosi(mosi),
       .miso(miso),

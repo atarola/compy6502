@@ -17,7 +17,6 @@ module byte_engine_mosi_tb;
 
   wire [7:0] rx_data;
   wire busy;
-  wire done;
   wire sck;
   wire mosi;
   wire [3:0] spi_csb;
@@ -30,7 +29,6 @@ module byte_engine_mosi_tb;
       .cs_select(cs_select),
       .rx_data(rx_data),
       .busy(busy),
-      .done(done),
       .sck(sck),
       .mosi(mosi),
       .miso(miso),

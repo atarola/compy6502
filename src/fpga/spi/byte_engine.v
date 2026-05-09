@@ -8,7 +8,6 @@ module byte_engine (
     input [1:0] cs_select,
     output [7:0] rx_data,
     output reg busy,
-    output reg done,
     output reg sck,
     output mosi,
     input miso,

@@ -33,7 +33,6 @@ module controller (
   wire write_neg_tick;
   wire write_tick = write_neg_tick | write_pos_tick;
   wire engine_busy;
-  wire engine_done;
 
   assign data_bus = (!csb && !rdb) ? read_data : 8'bzzzzzzzz;
 
@@ -54,7 +53,6 @@ module controller (
       .cs_select(conf[1:0]),
       .rx_data(rx_data),
       .busy(engine_busy),
-      .done(engine_done),
       .sck(sck),
       .mosi(mosi),
       .miso(miso),
@@ -64,7 +62,7 @@ module controller (
   always @(*) begin
     case (reg_select)
       RegData:   read_data = rx_data;
-      RegStatus: read_data = {6'b000000, engine_done, engine_busy};
+      RegStatus: read_data = {7'b0000000, engine_busy};
       RegConf:   read_data = conf;
       default:   read_data = 8'h00;
     endcase
