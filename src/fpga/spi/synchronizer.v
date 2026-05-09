@@ -1,3 +1,5 @@
+`default_nettype none
+
 module synchronizer (
     input clk,
     input resb,
