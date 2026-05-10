@@ -3,8 +3,8 @@
 /**
  * Spec: controller configuration-register write.
  *
- * Verify that a 6502 write to the configuration register captures data_bus and
- * updates conf without starting a byte transfer.
+ * Verify that a 6502 write to the configuration register captures cpu_data_in
+ * and updates conf without starting a byte transfer.
  */
 module controller_write_conf_tb;
   reg clk = 0;

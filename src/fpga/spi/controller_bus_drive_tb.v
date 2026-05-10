@@ -3,8 +3,8 @@
 /**
  * Spec: controller 6502 data-bus ownership.
  *
- * Verify that the controller only drives data_bus during selected reads and
- * otherwise leaves the bus high impedance.
+ * Verify that the controller asserts cpu_data_oeb only during selected reads
+ * and drives cpu_data_out with the selected register value.
  */
 module controller_bus_drive_tb;
   reg clk = 0;

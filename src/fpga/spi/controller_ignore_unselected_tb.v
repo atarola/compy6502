@@ -3,8 +3,8 @@
 /**
  * Spec: controller ignores bus cycles while unselected.
  *
- * Verify that reads do not drive data_bus and writes do not update controller
- * state when csb is inactive.
+ * Verify that reads do not assert cpu_data_oeb and writes do not update
+ * controller state when csb is inactive.
  */
 module controller_ignore_unselected_tb;
   reg clk = 0;

@@ -3,8 +3,8 @@
 /**
  * Spec: controller data-register write starts a byte transfer.
  *
- * Verify that a 6502 write to the data register captures data_bus, synchronizes
- * the write event into clk, loads byte_engine tx_data, and pulses start.
+ * Verify that a 6502 write to the data register captures cpu_data_in,
+ * synchronizes the write event into clk, loads byte_engine tx_data, and pulses start.
  */
 module controller_write_data_tb;
   reg clk = 0;

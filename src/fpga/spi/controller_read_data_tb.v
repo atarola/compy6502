@@ -3,8 +3,8 @@
 /**
  * Spec: controller data-register read.
  *
- * Verify that a 6502 read from the data register drives data_bus with the last
- * byte received by byte_engine, and releases data_bus when read is inactive.
+ * Verify that a 6502 read from the data register drives cpu_data_out with the
+ * last byte received by byte_engine, and deasserts cpu_data_oeb when inactive.
  */
 module controller_read_data_tb;
   reg clk = 0;

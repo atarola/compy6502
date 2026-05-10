@@ -3,8 +3,8 @@
 /**
  * Spec: controller configuration-register read.
  *
- * Verify that a 6502 read from the configuration register drives data_bus with
- * the current conf value.
+ * Verify that a 6502 read from the configuration register drives cpu_data_out
+ * with the current conf value when cpu_data_oeb is asserted.
  */
 module controller_read_conf_tb;
   reg clk = 0;
