@@ -2,12 +2,14 @@
 
 module top (
     input CLK,
+    output LED,
     output USBPU,
     input [1:0] REG_SELECT,
     input RESB,
     input WRB,
     input RDB,
     inout [7:0] DATA,
+    output DATA_OUT,
     input CSB,
     output [3:0] SPI_CSB,
     output SCK,
@@ -16,10 +18,12 @@ module top (
 );
 
   assign USBPU = 0;
+  assign LED = !CSB;
 
   wire cpu_data_oeb;
   wire [7:0] cpu_data_out;
   assign DATA = !cpu_data_oeb ? cpu_data_out : 8'bzzzzzzzz;
+  assign DATA_OUT = !cpu_data_oeb;
 
   controller spi (
       .clk(CLK),

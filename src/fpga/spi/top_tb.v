@@ -4,8 +4,9 @@
  * Spec: top-level SPI wrapper smoke test.
  *
  * Verify that top-level wiring propagates reset and bus control correctly:
- * USBPU default state, DATA tri-state behavior on write cycles, and DATA drive
- * behavior on selected read cycles.
+ * USBPU default state, LED select indicator, DATA tri-state behavior on write cycles, DATA drive
+ * behavior on selected read cycles, and DATA_OUT behavior for an external
+ * data-bus transceiver.
  */
 module top_tb;
   reg CLK = 0;
@@ -19,19 +20,23 @@ module top_tb;
   reg [7:0] tb_data_drive = 8'h00;
 
   wire USBPU;
+  wire LED;
   wire [7:0] DATA = tb_data_oe ? tb_data_drive : 8'bzzzzzzzz;
+  wire DATA_OUT;
   wire [3:0] SPI_CSB;
   wire SCK;
   wire MOSI;
 
   top uut (
       .CLK(CLK),
+      .LED(LED),
       .USBPU(USBPU),
       .REG_SELECT(REG_SELECT),
       .RESB(RESB),
       .WRB(WRB),
       .RDB(RDB),
       .DATA(DATA),
+      .DATA_OUT(DATA_OUT),
       .CSB(CSB),
       .SPI_CSB(SPI_CSB),
       .SCK(SCK),
@@ -60,6 +65,10 @@ module top_tb;
       $display("FAIL: expected USBPU low, got %b", USBPU);
       $finish;
     end
+    if (LED !== 1'b0) begin
+      $display("FAIL: expected LED low when CSB inactive, got %b", LED);
+      $finish;
+    end
 
     REG_SELECT = 2'b00;
     CSB = 0;
@@ -71,6 +80,14 @@ module top_tb;
 
     if (DATA !== 8'hA5) begin
       $display("FAIL: expected DATA to follow external drive on write, got %b", DATA);
+      $finish;
+    end
+    if (LED !== 1'b1) begin
+      $display("FAIL: expected LED high when CSB asserted, got %b", LED);
+      $finish;
+    end
+    if (DATA_OUT !== 1'b0) begin
+      $display("FAIL: expected DATA_OUT low on write, got %b", DATA_OUT);
       $finish;
     end
 
@@ -85,12 +102,36 @@ module top_tb;
       $display("FAIL: expected DATA to be 8'h00 on reset conf read, got %b", DATA);
       $finish;
     end
+    if (DATA_OUT !== 1'b1) begin
+      $display("FAIL: expected DATA_OUT high on selected read, got %b", DATA_OUT);
+      $finish;
+    end
+
+    CSB = 1;
+    RDB = 0;
+    #1;
+    if (LED !== 1'b0) begin
+      $display("FAIL: expected LED low on unselected read, got %b", LED);
+      $finish;
+    end
+    if (DATA !== 8'bzzzzzzzz) begin
+      $display("FAIL: expected DATA high-Z on unselected read, got %b", DATA);
+      $finish;
+    end
+    if (DATA_OUT !== 1'b0) begin
+      $display("FAIL: expected DATA_OUT low on unselected read, got %b", DATA_OUT);
+      $finish;
+    end
 
     CSB = 1;
     RDB = 1;
     #1;
     if (DATA !== 8'bzzzzzzzz) begin
       $display("FAIL: expected DATA high-Z when read inactive, got %b", DATA);
+      $finish;
+    end
+    if (DATA_OUT !== 1'b0) begin
+      $display("FAIL: expected DATA_OUT low when read inactive, got %b", DATA_OUT);
       $finish;
     end
 

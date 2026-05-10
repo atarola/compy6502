@@ -16,7 +16,7 @@ set_io DATA[0] H2
 
 set_io CSB H9
 
-# blank / reserved: D9
+set_io DATA_OUT D9
 
 set_io SPI_CSB[0] D8
 set_io SPI_CSB[1] C9
@@ -27,5 +27,6 @@ set_io SCK A8
 set_io MOSI B7
 set_io MISO A7
 
+set_io LED B3
 set_io USBPU A3
 set_io CLK B2

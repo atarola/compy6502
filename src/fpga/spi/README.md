@@ -18,6 +18,7 @@ The SPI Controller is a memory-mapped SPI peripheral for a 6502-style bus. It pr
 - `WRB` (in, active-low): write strobe.
 - `REG_SELECT[1:0]` (in): register select.
 - `DATA[7:0]` (inout): shared data bus.
+- `DATA_OUT` (out): high when the controller is driving `DATA[7:0]` toward the 6502 bus.
 
 ### 2.2 SPI Bus
 - `SPI_CSB[3:0]` (out, active-low): SPI chip selects.
@@ -61,6 +62,7 @@ When `CS Enable = 0`, `SPI_CSB[3:0] = 0b1111`.
 
 ## 6. Bus Behavior
 - The controller drives `DATA[7:0]` only during selected read cycles.
+- `DATA_OUT` is high only during selected read cycles.
 - During writes and unselected cycles, `DATA[7:0]` is high impedance from the controller side.
 - Write effects are visible after a small number of FPGA clock cycles.
 - Software should poll the Busy bit before assuming a byte transfer has completed.
