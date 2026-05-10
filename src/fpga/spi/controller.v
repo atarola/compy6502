@@ -17,13 +17,19 @@ module controller (
     output sck,
     output mosi,
     input miso,
-    output [3:0] spi_csb
+    output reg [3:0] spi_csb
 );
-  localparam reg [1:0] RegData = 2'b00, RegConf = 2'b01, RegStatus = 2'b10;
+  localparam reg [1:0] RegData = 2'b00;
+  localparam reg [1:0] RegConf = 2'b01;
+  localparam reg [1:0] RegStatus = 2'b10;
+
+  localparam reg [1:0] SpiCSB0 = 2'b00;
+  localparam reg [1:0] SpiCSB1 = 2'b01;
+  localparam reg [1:0] SpiCSB2 = 2'b10;
+  localparam reg [1:0] SpiCSB3 = 2'b11;
 
   reg write_toggle;
   reg start_transfer;
-  reg [7:0] status;
   reg [7:0] conf;
   reg [7:0] tx_data;
   reg [7:0] data_temp;
@@ -59,6 +65,18 @@ module controller (
   );
 
   always @(*) begin
+    if (conf[2]) begin
+      case (conf[1:0])
+        SpiCSB0: spi_csb = 4'b1110;
+        SpiCSB1: spi_csb = 4'b1101;
+        SpiCSB2: spi_csb = 4'b1011;
+        SpiCSB3: spi_csb = 4'b0111;
+        default: spi_csb = 4'b1111;
+      endcase
+    end else begin
+      spi_csb = 4'b1111;
+    end
+
     case (reg_select)
       RegData:   cpu_data_out = rx_data;
       RegStatus: cpu_data_out = {7'b0000000, engine_busy};
