@@ -75,20 +75,20 @@ When `CS Enable = 0`, `SPI_CSB[3:0] = 0b1111`.
 ## 8. Expected Transaction Example
 Example: send command byte `0x9f` to device 0, then read three response bytes.
 
-| Step | Register | Value | Expected effect |
-| --- | --- | --- | --- |
-| 1 | Config `0x01` | `0x04` | Assert `SPI_CSB[0]`; `SPI_CSB[3:0] = 0b1110`. |
-| 2 | Data `0x00` | `0x9f` | Start transfer of command byte. |
-| 3 | Status `0x02` | Read until Busy is `0` | Wait for command byte to finish. |
-| 4 | Data `0x00` | `0x00` | Start transfer of first response byte. |
-| 5 | Status `0x02` | Read until Busy is `0` | Wait for first response byte. |
-| 6 | Data `0x00` | Read | Read first received byte. |
-| 7 | Data `0x00` | `0x00` | Start transfer of second response byte. |
-| 8 | Status `0x02` | Read until Busy is `0` | Wait for second response byte. |
-| 9 | Data `0x00` | Read | Read second received byte. |
-| 10 | Data `0x00` | `0x00` | Start transfer of third response byte. |
-| 11 | Status `0x02` | Read until Busy is `0` | Wait for third response byte. |
-| 12 | Data `0x00` | Read | Read third received byte. |
-| 13 | Config `0x01` | `0x00` | Release all chip selects; `SPI_CSB[3:0] = 0b1111`. |
+| Step | Register | RDB | WRB | Value | Expected effect |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Config `0x01` | `1` | `0` | `0x04` | Assert `SPI_CSB[0]`; `SPI_CSB[3:0] = 0b1110`. |
+| 2 | Data `0x00` | `1` | `0` | `0x9f` | Start transfer of command byte. |
+| 3 | Status `0x02` | `0` | `1` | Read until Busy is `0` | Wait for command byte to finish. |
+| 4 | Data `0x00` | `1` | `0` | `0x00` | Start transfer of first response byte. |
+| 5 | Status `0x02` | `0` | `1` | Read until Busy is `0` | Wait for first response byte. |
+| 6 | Data `0x00` | `0` | `1` | Read | Read first received byte. |
+| 7 | Data `0x00` | `1` | `0` | `0x00` | Start transfer of second response byte. |
+| 8 | Status `0x02` | `0` | `1` | Read until Busy is `0` | Wait for second response byte. |
+| 9 | Data `0x00` | `0` | `1` | Read | Read second received byte. |
+| 10 | Data `0x00` | `1` | `0` | `0x00` | Start transfer of third response byte. |
+| 11 | Status `0x02` | `0` | `1` | Read until Busy is `0` | Wait for third response byte. |
+| 12 | Data `0x00` | `0` | `1` | Read | Read third received byte. |
+| 13 | Config `0x01` | `1` | `0` | `0x00` | Release all chip selects; `SPI_CSB[3:0] = 0b1111`. |
 
 Each Data write shifts one byte out on `MOSI` and captures one byte from `MISO`. For read-only SPI responses, write `0x00` or another device-appropriate dummy byte to clock each response byte in.
