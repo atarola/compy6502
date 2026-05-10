@@ -14,10 +14,10 @@ module controller_ignore_unselected_tb;
   reg wrb = 1;
   reg [1:0] reg_select = 2'b00;
   reg miso = 0;
-  reg [7:0] tb_data_drive;
-  reg tb_data_oe;
+  reg [7:0] cpu_data_in;
 
-  wire [7:0] data_bus = tb_data_oe ? tb_data_drive : 8'bzzzzzzzz;
+  wire [7:0] cpu_data_out;
+  wire cpu_data_oeb;
   wire sck;
   wire mosi;
   wire [3:0] spi_csb;
@@ -29,7 +29,9 @@ module controller_ignore_unselected_tb;
       .rdb(rdb),
       .wrb(wrb),
       .reg_select(reg_select),
-      .data_bus(data_bus),
+      .cpu_data_in(cpu_data_in),
+      .cpu_data_out(cpu_data_out),
+      .cpu_data_oeb(cpu_data_oeb),
       .sck(sck),
       .mosi(mosi),
       .miso(miso),
@@ -48,8 +50,7 @@ module controller_ignore_unselected_tb;
     $dumpfile("build/fpga/spi/controller_ignore_unselected_tb.vcd");
     $dumpvars(0, controller_ignore_unselected_tb);
 
-    tb_data_oe = 0;
-    tb_data_drive = 8'h00;
+    cpu_data_in = 8'h00;
 
     @(posedge clk);
     resb = 0;
@@ -65,16 +66,15 @@ module controller_ignore_unselected_tb;
 
     #1;
 
-    if (data_bus !== 8'bzzzzzzzz) begin
-      $display("FAIL: expected data_bus to be Z when csb not asserted, got %b", data_bus);
+    if (cpu_data_oeb !== 1'b1) begin
+      $display("FAIL: expected cpu_data_oeb high when csb not asserted, got %b", cpu_data_oeb);
       $finish;
     end
 
     csb = 1;
     wrb = 0;
     rdb = 1;
-    tb_data_drive = 8'h55;
-    tb_data_oe = 1;
+    cpu_data_in = 8'h55;
 
     #1;
 
@@ -85,8 +85,13 @@ module controller_ignore_unselected_tb;
 
     #1;
 
-    if ((data_bus & 8'h01) == 8'h01) begin
-      $display("FAIL: expected no change to state when csb is not asserted, got %b", data_bus);
+    if (cpu_data_oeb !== 1'b0) begin
+      $display("FAIL: expected cpu_data_oeb low on status read, got %b", cpu_data_oeb);
+      $finish;
+    end
+
+    if ((cpu_data_out & 8'h01) == 8'h01) begin
+      $display("FAIL: expected no change to state when csb is not asserted, got %b", cpu_data_out);
       $finish;
     end
 
@@ -96,6 +101,3 @@ module controller_ignore_unselected_tb;
     $finish;
   end
 endmodule
-
-
-

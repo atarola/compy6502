@@ -14,8 +14,10 @@ module controller_bus_drive_tb;
   reg wrb = 1;
   reg [1:0] reg_select = 2'b00;
   reg miso = 0;
+  reg [7:0] cpu_data_in = 8'h00;
 
-  wire [7:0] data_bus;
+  wire [7:0] cpu_data_out;
+  wire cpu_data_oeb;
   wire sck;
   wire mosi;
   wire [3:0] spi_csb;
@@ -27,7 +29,9 @@ module controller_bus_drive_tb;
       .rdb(rdb),
       .wrb(wrb),
       .reg_select(reg_select),
-      .data_bus(data_bus),
+      .cpu_data_in(cpu_data_in),
+      .cpu_data_out(cpu_data_out),
+      .cpu_data_oeb(cpu_data_oeb),
       .sck(sck),
       .mosi(mosi),
       .miso(miso),
@@ -60,8 +64,8 @@ module controller_bus_drive_tb;
 
     #1;
 
-    if (data_bus !== 8'bzzzzzzzz) begin
-      $display("FAIL: expected data_bus to be Z on csb and wrb asserted, got %b", data_bus);
+    if (cpu_data_oeb !== 1'b1) begin
+      $display("FAIL: expected cpu_data_oeb high on write cycle, got %b", cpu_data_oeb);
       $finish;
     end
 
@@ -71,8 +75,13 @@ module controller_bus_drive_tb;
 
     #1;
 
-    if (data_bus !== 8'h00) begin
-      $display("FAIL: expected data_bus to be 8'h00 on csb and rdb asserted, got %b", data_bus);
+    if (cpu_data_oeb !== 1'b0) begin
+      $display("FAIL: expected cpu_data_oeb low on read cycle, got %b", cpu_data_oeb);
+      $finish;
+    end
+
+    if (cpu_data_out !== 8'h00) begin
+      $display("FAIL: expected cpu_data_out to be 8'h00 on csb and rdb asserted, got %b", cpu_data_out);
       $finish;
     end
 

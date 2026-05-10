@@ -9,7 +9,9 @@ module controller (
     input rdb,
     input wrb,
     input [1:0] reg_select,
-    inout [7:0] data_bus,
+    input [7:0] cpu_data_in,
+    output reg [7:0] cpu_data_out,
+    output cpu_data_oeb,
 
     // SPI interface
     output sck,
@@ -23,10 +25,9 @@ module controller (
   reg start_transfer;
   reg [7:0] status;
   reg [7:0] conf;
-  reg [7:0] read_data;
+  reg [7:0] tx_data;
   reg [7:0] data_temp;
   reg [1:0] reg_temp;
-  reg [7:0] tx_data;
 
   wire [7:0] rx_data;
   wire write_pos_tick;
@@ -34,7 +35,7 @@ module controller (
   wire write_tick = write_neg_tick | write_pos_tick;
   wire engine_busy;
 
-  assign data_bus = (!csb && !rdb) ? read_data : 8'bzzzzzzzz;
+  assign cpu_data_oeb = !(!csb && !rdb);
 
   synchronizer write_sync (
       .clk(clk),
@@ -59,10 +60,10 @@ module controller (
 
   always @(*) begin
     case (reg_select)
-      RegData:   read_data = rx_data;
-      RegStatus: read_data = {7'b0000000, engine_busy};
-      RegConf:   read_data = conf;
-      default:   read_data = 8'h00;
+      RegData:   cpu_data_out = rx_data;
+      RegStatus: cpu_data_out = {7'b0000000, engine_busy};
+      RegConf:   cpu_data_out = conf;
+      default:   cpu_data_out = 8'h00;
     endcase
   end
 
@@ -72,7 +73,7 @@ module controller (
       data_temp <= 8'h00;
       reg_temp <= 2'b00;
     end else if (!csb) begin
-      data_temp <= data_bus;
+      data_temp <= cpu_data_in;
       reg_temp <= reg_select;
       write_toggle <= !write_toggle;
     end
@@ -80,7 +81,6 @@ module controller (
 
   always @(posedge clk or negedge resb) begin
     if (!resb) begin
-      // TODO: choose good defaults
       conf <= 8'h00;
       start_transfer <= 1'b0;
       tx_data <= 8'h00;
