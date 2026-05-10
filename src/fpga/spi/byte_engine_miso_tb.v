@@ -47,7 +47,6 @@ module byte_engine_miso_tb;
     tx_data = 8'hA5;
     miso = 0;
 
-    // Reset the engine before starting the transfer.
     @(posedge clk);
     resb = 0;
 
@@ -61,14 +60,12 @@ module byte_engine_miso_tb;
     @(negedge clk);
     start = 0;
 
-    // Drive the next MISO bit after each sample edge.
     repeat (8) begin
       @(posedge sck);
       #1;
       miso = ~miso;
     end
 
-    // Wait until the engine returns to idle.
     wait (!busy);
     if (rx_data !== 8'hAA) begin
       $display("FAIL: expected rx_data to be 8b'10101010 from miso, got %b", rx_data);

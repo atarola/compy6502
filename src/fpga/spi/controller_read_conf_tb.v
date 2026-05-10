@@ -76,8 +76,6 @@ module controller_read_conf_tb;
       $finish;
     end
 
-    // Write conf = 8'h55. Controller samples on negedge wrb, so keep bus
-    // actively driven across that edge.
     csb = 0;
     wrb = 1;
     rdb = 1;

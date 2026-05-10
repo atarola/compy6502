@@ -50,14 +50,12 @@ module byte_engine_reset_tb;
     tx_data = 8'hA5;
     miso = 0;
 
-    // quick reset
     @(posedge clk);
     resb = 0;
 
     @(posedge clk);
     resb = 1;
 
-    // Start one transfer
     @(posedge clk);
     start = 1;
     miso  = 1;
@@ -65,7 +63,6 @@ module byte_engine_reset_tb;
     @(posedge clk);
     start = 0;
 
-    // wait for the engine to turn once
     @(posedge sck);
     @(posedge clk);
     #1;
@@ -74,14 +71,12 @@ module byte_engine_reset_tb;
       $finish;
     end
 
-    // do a reset
     @(posedge clk);
     resb = 0;
 
     @(posedge clk);
     resb = 1;
 
-    // lets see it clear
     @(posedge clk);
     #1;
     if (rx_data !== 8'h00) begin

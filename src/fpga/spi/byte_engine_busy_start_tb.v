@@ -48,7 +48,6 @@ module byte_engine_busy_start_tb;
     tx_data = 8'h55;
     out_bits = 8'h00;
 
-    // Reset the engine before starting the transfer.
     @(posedge clk);
     resb = 0;
 
@@ -61,7 +60,6 @@ module byte_engine_busy_start_tb;
     @(negedge clk);
     start = 0;
 
-    // let the first clock edge fire
     @(posedge sck);
     #1;
     out_bits = {out_bits[6:0], mosi};
@@ -78,14 +76,12 @@ module byte_engine_busy_start_tb;
     @(negedge clk);
     start = 0;
 
-    // Sample the MOSI bit after each rising edge.
     repeat (7) begin
       @(posedge sck);
       #1;
       out_bits = {out_bits[6:0], mosi};
     end
 
-    // Wait until the engine returns to idle.
     wait (!busy);
     if (out_bits !== 8'h55) begin
       $display("FAIL: expected out_bits to be 8b'01010101 from mosi, got %b", out_bits);

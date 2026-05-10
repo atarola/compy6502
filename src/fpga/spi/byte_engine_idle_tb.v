@@ -47,7 +47,6 @@ module byte_engine_idle_tb;
     tx_data = 8'h00;
     miso = 1;
 
-    // Reset the engine before starting the transfer.
     @(posedge clk);
     resb = 0;
 
@@ -60,14 +59,12 @@ module byte_engine_idle_tb;
     @(negedge clk);
     start = 0;
 
-    // Drive alternating MISO bits after each sample edge.
     repeat (8) begin
       @(posedge sck);
       #1;
       miso = ~miso;
     end
 
-    // Wait until the engine returns to idle.
     wait (!busy);
 
     if (busy !== 1'b0) begin

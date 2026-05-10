@@ -49,7 +49,6 @@ module byte_engine_back_to_back_tb;
     miso = 0;
     out_bits = 8'h00;
 
-    // Reset the engine before starting the transfer.
     @(posedge clk);
     resb = 0;
 
@@ -63,7 +62,6 @@ module byte_engine_back_to_back_tb;
     @(negedge clk);
     start = 0;
 
-    // Sample the SPI outputs
     repeat (8) begin
       @(posedge sck);
       #1;
@@ -82,7 +80,6 @@ module byte_engine_back_to_back_tb;
       $finish;
     end
 
-    // Wait until the engine returns to idle.
     @(negedge clk);
     start = 1;
     miso = 0;
@@ -92,7 +89,6 @@ module byte_engine_back_to_back_tb;
     @(negedge clk);
     start = 0;
 
-    // Sample the SPI outputs
     repeat (8) begin
       @(posedge sck);
       #1;
