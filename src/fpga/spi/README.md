@@ -12,19 +12,39 @@ The SPI Controller is a memory-mapped SPI peripheral for a 6502-style bus. It pr
 
 ## 2. External Signals
 ### 2.1 6502 Bus
-- `RESB` (in, active-low): reset.
-- `CSB` (in, active-low): selects this peripheral.
-- `RDB` (in, active-low): read strobe.
-- `WRB` (in, active-low): write strobe.
-- `REG_SELECT[1:0]` (in): register select.
-- `DATA[7:0]` (inout): shared data bus.
-- `DATA_OUT` (out): high when the controller is driving `DATA[7:0]` toward the 6502 bus.
+| Signal | Pin | Direction | Description |
+| --- | --- | --- | --- |
+| `RESB` | `3` | In, active-low | Reset. |
+| `CSB` | `14` | In, active-low | Selects this peripheral. |
+| `RDB` | `5` | In, active-low | Read strobe. |
+| `WRB` | `4` | In, active-low | Write strobe. |
+| `REG_SELECT[1]` | `1` | In | Register select bit 1. |
+| `REG_SELECT[0]` | `2` | In | Register select bit 0. |
+| `DATA[7]` | `6` | Inout | Shared data bus bit 7. |
+| `DATA[6]` | `7` | Inout | Shared data bus bit 6. |
+| `DATA[5]` | `8` | Inout | Shared data bus bit 5. |
+| `DATA[4]` | `9` | Inout | Shared data bus bit 4. |
+| `DATA[3]` | `10` | Inout | Shared data bus bit 3. |
+| `DATA[2]` | `11` | Inout | Shared data bus bit 2. |
+| `DATA[1]` | `12` | Inout | Shared data bus bit 1. |
+| `DATA[0]` | `13` | Inout | Shared data bus bit 0. |
+| `DATA_OUT` | `15` | Out | High when the controller is driving `DATA[7:0]` toward the 6502 bus. |
 
 ### 2.2 SPI Bus
-- `SPI_CSB[3:0]` (out, active-low): SPI chip selects.
-- `SCK` (out): SPI clock.
-- `MOSI` (out): master-out serial data.
-- `MISO` (in): master-in serial data.
+| Signal | Pin | Direction | Description |
+| --- | --- | --- | --- |
+| `SPI_CSB[0]` | `16` | Out, active-low | SPI chip select 0. |
+| `SPI_CSB[1]` | `17` | Out, active-low | SPI chip select 1. |
+| `SPI_CSB[2]` | `18` | Out, active-low | SPI chip select 2. |
+| `SPI_CSB[3]` | `19` | Out, active-low | SPI chip select 3. |
+| `SCK` | `20` | Out | SPI clock. |
+| `MOSI` | `21` | Out | Master-out serial data. |
+| `MISO` | `22` | In | Master-in serial data. |
+
+### 2.3 Local Indicators
+| Signal | Pin | Direction | Description |
+| --- | --- | --- | --- |
+| `LED` | `LED` | Out | High when `CSB` is asserted. |
 
 ## 3. Register Map
 `REG_SELECT[1:0]` selects one of four register addresses.
