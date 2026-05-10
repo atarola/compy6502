@@ -12,7 +12,6 @@ The SPI Controller is a memory-mapped SPI peripheral for a 6502-style bus. It pr
 
 ## 2. External Signals
 ### 2.1 6502 Bus
-- `CLK` (in): FPGA system clock.
 - `RESB` (in, active-low): reset.
 - `CSB` (in, active-low): selects this peripheral.
 - `RDB` (in, active-low): read strobe.
@@ -31,10 +30,10 @@ The SPI Controller is a memory-mapped SPI peripheral for a 6502-style bus. It pr
 
 | Address | Name | Read | Write |
 | --- | --- | --- | --- |
-| `0b00` | Data | Last received byte | Transmit byte and start transfer |
-| `0b01` | Config | Current configuration | Update configuration |
-| `0b10` | Status | Transfer status | Ignored |
-| `0b11` | Reserved | `0x00` | Ignored |
+| `0x00` | Data | Last received byte | Transmit byte and start transfer |
+| `0x01` | Config | Current configuration | Update configuration |
+| `0x02` | Status | Transfer status | Ignored |
+| `0x03` | Reserved | `0x00` | Ignored |
 
 ## 4. Config Register
 | Bits | Name | Description |
@@ -78,18 +77,18 @@ Example: send command byte `0x9f` to device 0, then read three response bytes.
 
 | Step | Register | Value | Expected effect |
 | --- | --- | --- | --- |
-| 1 | Config | `0x04` | Assert `SPI_CSB[0]`; `SPI_CSB[3:0] = 0b1110`. |
-| 2 | Data | `0x9f` | Start transfer of command byte. |
-| 3 | Status | Read until Busy is `0` | Wait for command byte to finish. |
-| 4 | Data | `0x00` | Start transfer of first response byte. |
-| 5 | Status | Read until Busy is `0` | Wait for first response byte. |
-| 6 | Data | Read | Read first received byte. |
-| 7 | Data | `0x00` | Start transfer of second response byte. |
-| 8 | Status | Read until Busy is `0` | Wait for second response byte. |
-| 9 | Data | Read | Read second received byte. |
-| 10 | Data | `0x00` | Start transfer of third response byte. |
-| 11 | Status | Read until Busy is `0` | Wait for third response byte. |
-| 12 | Data | Read | Read third received byte. |
-| 13 | Config | `0x00` | Release all chip selects; `SPI_CSB[3:0] = 0b1111`. |
+| 1 | Config `0x01` | `0x04` | Assert `SPI_CSB[0]`; `SPI_CSB[3:0] = 0b1110`. |
+| 2 | Data `0x00` | `0x9f` | Start transfer of command byte. |
+| 3 | Status `0x02` | Read until Busy is `0` | Wait for command byte to finish. |
+| 4 | Data `0x00` | `0x00` | Start transfer of first response byte. |
+| 5 | Status `0x02` | Read until Busy is `0` | Wait for first response byte. |
+| 6 | Data `0x00` | Read | Read first received byte. |
+| 7 | Data `0x00` | `0x00` | Start transfer of second response byte. |
+| 8 | Status `0x02` | Read until Busy is `0` | Wait for second response byte. |
+| 9 | Data `0x00` | Read | Read second received byte. |
+| 10 | Data `0x00` | `0x00` | Start transfer of third response byte. |
+| 11 | Status `0x02` | Read until Busy is `0` | Wait for third response byte. |
+| 12 | Data `0x00` | Read | Read third received byte. |
+| 13 | Config `0x01` | `0x00` | Release all chip selects; `SPI_CSB[3:0] = 0b1111`. |
 
 Each Data write shifts one byte out on `MOSI` and captures one byte from `MISO`. For read-only SPI responses, write `0x00` or another device-appropriate dummy byte to clock each response byte in.
