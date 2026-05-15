@@ -7,7 +7,9 @@ dependencies = []
 [dependency-groups]
 dev = [
     "doit",
+    "ipython>=9.13.0",
     "py65==1.1.0",
+    "pyserial>=3.5",
     "pytest",
     "ruff",
 ]

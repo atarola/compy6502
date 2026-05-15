@@ -5,6 +5,8 @@ import subprocess
 FPGA_PART = "lp8k"
 FPGA_PACKAGE = "cm81"
 FPGA_FREQ_MHZ = "16"
+ASM_PROGRAM_ROOT = Path("src/asm/programs")
+ASM_PROGRAM_BUILD_ROOT = Path("build/asm/programs")
 
 
 def fpga_targets():
@@ -14,6 +16,47 @@ def fpga_targets():
 
 def run(*cmd):
     subprocess.run(cmd, check=True)
+
+
+def asm_program_sources():
+    return sorted(ASM_PROGRAM_ROOT.glob("**/*.s"))
+
+
+def asm_program_outputs(source):
+    relative = source.relative_to(ASM_PROGRAM_ROOT)
+    output = ASM_PROGRAM_BUILD_ROOT / relative.with_suffix("")
+    return {
+        "object": output.with_suffix(".o"),
+        "listing": output.with_suffix(".lst"),
+        "srec": output.with_suffix(".srec"),
+    }
+
+
+def compile_asm_programs():
+    sources = asm_program_sources()
+    if not sources:
+        raise FileNotFoundError(f"no asm programs found under {ASM_PROGRAM_ROOT}/")
+
+    for source in sources:
+        outputs = asm_program_outputs(source)
+        outputs["object"].parent.mkdir(parents=True, exist_ok=True)
+        run(
+            "ca65",
+            "--cpu",
+            "65c02",
+            "--list-bytes",
+            "255",
+            "-I",
+            "./src/asm",
+            "-I",
+            "./src",
+            "-l",
+            outputs["listing"],
+            "-o",
+            outputs["object"],
+            source,
+        )
+        run("python", "src/tools/srec.py", outputs["listing"], "-o", outputs["srec"])
 
 
 def fpga_paths(target):
@@ -141,16 +184,19 @@ def task_fpga():
 
 
 def task_asm():
+    program_sources = asm_program_sources()
+    program_outputs = [output for source in program_sources for output in asm_program_outputs(source).values()]
+
     yield {
         "name": "build",
-        "actions": ["./src/asm/build.sh"],
+        "actions": ["./src/asm/eeprom/build.sh"],
         "file_dep": [
-            "src/asm/build.sh",
-            "src/asm/compy6502.x",
+            "src/asm/eeprom/build.sh",
+            "src/asm/eeprom/compy6502.x",
             "src/asm/include/compy6502.inc",
-            "src/asm/kernel/vectors.s",
-            "src/asm/main.s",
-            "src/asm/wozmon.s",
+            "src/asm/eeprom/kernel/vectors.s",
+            "src/asm/eeprom/main.s",
+            "src/asm/eeprom/wozmon.s",
         ],
         "targets": ["bin/compy6502.bin"],
     }
@@ -159,4 +205,15 @@ def task_asm():
         "name": "test",
         "actions": ["uv run pytest"],
         "task_dep": ["asm:build"],
+    }
+
+    yield {
+        "name": "programs",
+        "actions": [compile_asm_programs],
+        "file_dep": [
+            "src/tools/srec.py",
+            "src/asm/include/compy6502.inc",
+            *program_sources,
+        ],
+        "targets": program_outputs,
     }

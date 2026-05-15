@@ -6,8 +6,8 @@ from pathlib import Path
 from py65.devices import mpu65c02
 from py65.memory import ObservableMemory
 
-ASSEMBLE = "ca65 -I ./src/asm -I ./src -o ./test/asm/bin/{0}.o ./test/asm/{0}.s"
-LINK = "ld65 -C ./src/asm/compy6502.x -o ./test/asm/bin/{0}.bin ./test/asm/bin/{0}.o"
+ASSEMBLE = "ca65 -I ./src/asm/eeprom -I ./src/asm -I ./src -o ./test/asm/bin/{0}.o ./test/asm/{0}.s"
+LINK = "ld65 -C ./src/asm/eeprom/compy6502.x -o ./test/asm/bin/{0}.bin ./test/asm/bin/{0}.o"
 
 
 class BaseTest(unittest.TestCase):

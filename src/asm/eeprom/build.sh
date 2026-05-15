@@ -10,5 +10,5 @@ mkdir -p ./bin
 rm -rf ./build/*
 rm -rf ./bin/*
 
-ca65 -I ./src/asm -I ./src -o ./build/compy6502.o ./src/asm/main.s
-ld65 -C ./src/asm/compy6502.x -o ./bin/compy6502.bin ./build/compy6502.o
+ca65 -I ./src/asm/eeprom -I ./src/asm -I ./src -o ./build/compy6502.o ./src/asm/eeprom/main.s
+ld65 -C ./src/asm/eeprom/compy6502.x -o ./bin/compy6502.bin ./build/compy6502.o
