@@ -17,13 +17,15 @@ def parse_args():
     return parser.parse_args()
 
 
-# Details: https://en.wikipedia.org/wiki/Motorola_S-record
-def srecord(record_type: str, addr: int, data: list[int]) -> str:
-    count = 3 + len(data)
-    addr_bytes = [(addr >> 8) & 0xFF, addr & 0xFF]
-    checksum = (~sum([count, *addr_bytes, *data])) & 0xFF
-    payload = "".join(f"{item:02X}" for item in data)
-    return f"S{record_type}{count:02X}{addr:04X}{payload}{checksum:02X}"
+def main():
+    args = parse_args()
+
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    with Path(args.input).open("r") as in_file:
+        with output.open("w") as out_file:
+            convert_file(in_file, out_file, args.target)
 
 
 def convert_file(in_file: TextIO, out_file: TextIO, target: str) -> None:
@@ -61,15 +63,13 @@ def parse_line(line: str) -> tuple[int, list[int]] | None:
     return int(parts[0], 16), data
 
 
-def main():
-    args = parse_args()
-
-    output = Path(args.output)
-    output.parent.mkdir(parents=True, exist_ok=True)
-
-    with Path(args.input).open("r") as in_file:
-        with output.open("w") as out_file:
-            convert_file(in_file, out_file, args.target)
+# Details: https://en.wikipedia.org/wiki/Motorola_S-record
+def srecord(record_type: str, addr: int, data: list[int]) -> str:
+    count = 3 + len(data)
+    addr_bytes = [(addr >> 8) & 0xFF, addr & 0xFF]
+    checksum = (~sum([count, *addr_bytes, *data])) & 0xFF
+    payload = "".join(f"{item:02X}" for item in data)
+    return f"S{record_type}{count:02X}{addr:04X}{payload}{checksum:02X}"
 
 
 if __name__ == "__main__":
