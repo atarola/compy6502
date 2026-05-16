@@ -2,7 +2,12 @@
 
 .code
 
+.segment "JUMPTABLE"
+.include "jumptable.s"
+
 .segment "KERNEL"
+.include "kernel/acia.s"
+.include "kernel/loader.s"
 .include "kernel/vectors.s"
 
 .segment "WOZMON"
