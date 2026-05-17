@@ -76,55 +76,52 @@ print_hex:
   ldx SP
 
   lda STACK_BASE + 1,x ; high byte
-  jsr @print_hex_byte
+  jsr BYTE_TO_HEX
+  jsr ACIA_PUTC
+  txa 
+  jsr ACIA_PUTC
 
+  ldx SP
   lda STACK_BASE,x     ; low byte
-  jsr @print_hex_byte
+  jsr BYTE_TO_HEX
+  jsr ACIA_PUTC
+  txa 
+  jsr ACIA_PUTC
 
   jmp next
-
-@print_hex_byte:
-  pha
-  lsr
-  lsr
-  lsr
-  lsr
-  jsr @print_hex_nibble
-
-  pla
-  and #$0F
-  jsr @print_hex_nibble
-  rts
-
-@print_hex_nibble:
-  and #$0F
-  cmp #$0A
-  bcc @digit
-
-  clc
-  adc #'A' - 10
-  jmp ACIA_PUTC
-
-@digit:
-  clc
-  adc #'0'
-  jmp ACIA_PUTC
-
-name_table:
-  .byte 3, "add", TOKEN_ADD
-  .byte 3, "bye", TOKEN_END
-  .byte 0
 
 primative_table:
   .word invalid
   .word end
+  .word call
+  .word return
+  .word shell_return
+  .word branch
+  .word branch_if_zero
+  .word beq_word
+  .word clc_word
+  .word sec_word
+  .word drop
+  .word dup
+  .word swap
+  .word over
+  .word r_from
+  .word r_to
+  .word eql
+  .word eqz
+  .word adc_word
+  .word sbc_word
+  .word and_word
+  .word or_word
+  .word eor_word
+  .word nand
+  .word sub_word
+  .word noop
+  .word load_word
+  .word store_word
   .word literal
   .word add
   .word print_hex
-  .word call
-  .word return
-  .word dup
-  .word shell_return
 
 primative_table_used = (* - primative_table) / 2
 
