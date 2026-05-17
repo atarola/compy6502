@@ -1,4 +1,3 @@
-
 .include "include/compy6502.inc"
 
 ; Write byte to ACIA.

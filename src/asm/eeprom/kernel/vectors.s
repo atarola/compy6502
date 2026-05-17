@@ -1,7 +1,7 @@
-.segment "KERNEL"
+.include "include/compy6502.inc"
 
 RESET_HANDLER:
-    jmp WOZMON_START
+    jmp WOZMON
 
 NMI_HANDLER:
     rti

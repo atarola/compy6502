@@ -8,6 +8,7 @@
 .segment "KERNEL"
 .include "kernel/acia.s"
 .include "kernel/loader.s"
+.include "kernel/strings.s"
 .include "kernel/vectors.s"
 
 .segment "WOZMON"

@@ -22,6 +22,10 @@ def asm_program_sources():
     return sorted(ASM_PROGRAM_ROOT.glob("**/*.s"))
 
 
+def asm_program_includes():
+    return sorted(ASM_PROGRAM_ROOT.glob("**/*.inc"))
+
+
 def asm_program_outputs(source):
     relative = source.relative_to(ASM_PROGRAM_ROOT)
     output = ASM_PROGRAM_BUILD_ROOT / relative.with_suffix("")
@@ -185,6 +189,7 @@ def task_fpga():
 
 def task_asm():
     program_sources = asm_program_sources()
+    program_includes = asm_program_includes()
     program_outputs = [output for source in program_sources for output in asm_program_outputs(source).values()]
 
     yield {
@@ -213,6 +218,7 @@ def task_asm():
         "file_dep": [
             "src/tools/srec.py",
             "src/asm/include/compy6502.inc",
+            *program_includes,
             *program_sources,
         ],
         "targets": program_outputs,
