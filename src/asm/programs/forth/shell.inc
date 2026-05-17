@@ -1,3 +1,4 @@
+; shell prompt and line reader
 shell:
   lda #$0A
   jsr ACIA_PUTC
@@ -13,6 +14,7 @@ shell:
 
   ldx #$00
 
+; echo input into INPUT_BASE until carriage return
 @load_char:
   jsr ACIA_GETC
   cmp #$0D
@@ -26,6 +28,7 @@ shell:
   inx
   jmp @load_char
 
+; terminate the input line and reset per-line state
 @load_end:
   lda #$0D
   jsr ACIA_PUTC
@@ -37,6 +40,7 @@ shell:
   sta SCRATCH_IDX
   ldx #$00
 
+; skip spaces and find the start of the next word
 @find_word_start:
   lda INPUT_BASE,x
   beq @execute_line
@@ -45,6 +49,7 @@ shell:
   inx
   jmp @find_word_start
 
+; record the word start and scan to its end
 @word_start:
   stx WORD_LO
   lda #>INPUT_BASE
@@ -52,6 +57,7 @@ shell:
 
   ldy #$01
 
+; advance until space or end of line
 @find_word_end:
   inx
   lda INPUT_BASE,x
@@ -62,6 +68,7 @@ shell:
   iny
   jmp @find_word_end
 
+; emit a word terminated by space, then keep scanning
 @word_end_space:
   sty WORD_LEN
   phx
@@ -69,11 +76,13 @@ shell:
   plx
   jmp @find_word_start
 
+; emit the final word and finish the line
 @word_end_line:
   sty WORD_LEN
   jsr find_token
   jmp @execute_line
 
+; append shell return and run the scratch buffer
 @execute_line:
   ldy SCRATCH_IDX
   lda #TOKEN_SHELL_RETURN
@@ -83,6 +92,7 @@ shell:
 
 ; 
 
+; resolve a word to either a known token or a hex literal
 find_token:
   jsr find_name
   bcc @emit_token
@@ -92,12 +102,14 @@ find_token:
 
   jmp shell_error
 
+; append a token byte to scratch
 @emit_token:
   ldy SCRATCH_IDX
   sta SCRATCH_BASE,y
   inc SCRATCH_IDX
   rts
 
+; append TOKEN_LITERAL plus the parsed byte value
 @emit_literal:
   sta TEMP_LO
 
@@ -113,57 +125,71 @@ find_token:
 
   rts
 
-;
-
+; scan through the name records in the heap
 find_name:
-  ldx #$00
+  lda #<heap
+  sta HEAP_CURR_LO
 
+  lda #>heap
+  sta HEAP_CURR_HI
+
+; inspect the next table entry
 @next_name:
-  stx WORD_IDX 
-  lda name_table,x
-  beq @not_found
-  
-  cmp WORD_LEN
-  bne @skip_entry
-  
-  sta TEMP_LO
-  inx 
   ldy #$00
 
+  lda (HEAP_CURR_LO),y
+  sta HEAP_NEXT_LO
+  
+  INC_HEAP_CURR
+  lda (HEAP_CURR_LO),y
+  sta HEAP_NEXT_HI
+
+  INC_HEAP_CURR
+  lda (HEAP_CURR_LO),y
+  cmp WORD_LEN
+  bne @next_word
+
+  sta TEMP_LO
+  ldx WORD_LO
+  INC_HEAP_CURR
+
+; compare the input word against this table entry
 @compare_loop:
-  lda name_table,x
-  cmp (WORD_LO),y
-  bne @skip_from_saved 
+  ldy #$00
+
+  lda INPUT_BASE,x
+  cmp (HEAP_CURR_LO),y
+  bne @next_word
+
+  INC_HEAP_CURR
   inx
-  iny
 
   dec TEMP_LO
   bne @compare_loop
 
-  lda name_table,x
+  lda (HEAP_CURR_LO),y
   clc
   rts
 
-@skip_from_saved:
-  ldx WORD_IDX
+; try the next word
+@next_word:
+  lda HEAP_NEXT_LO
+  sta HEAP_CURR_LO
 
-@skip_entry:
-  lda name_table,x
-  clc
-  adc #$02
+  cmp #$FF
+  beq @not_found
 
-@skip_inc:
-  inx
-  dec
-  bne @skip_inc
+  lda HEAP_NEXT_HI
+  sta HEAP_CURR_HI
+
   jmp @next_name
 
+; no table entry matched
 @not_found:
   sec
   rts
 
-;
-
+; parse a 1-2 digit hex literal into a byte
 parse_hex_byte:
   lda WORD_LEN
   beq @bad
@@ -175,6 +201,7 @@ parse_hex_byte:
 
   ldy #$00
 
+; fold one hex digit into the accumulator
 @parse_loop:
   lda (WORD_LO),y
   jsr HEX_TO_NIBBLE
@@ -197,12 +224,12 @@ parse_hex_byte:
   clc
   rts
 
+; invalid hex input
 @bad:
   sec
   rts
 
-;
-
+; print an error marker and restart the shell
 shell_error:
   lda #'!'
   jsr ACIA_PUTC
@@ -213,37 +240,4 @@ shell_error:
   lda #$0A
   jsr ACIA_PUTC
 
-  lda #$FF
-  sta SP
   jmp shell
-
-;
-
-name_table:
-  .byte $06, "branch", TOKEN_BRANCH
-  .byte $03, "bez", TOKEN_BRANCH_IF_ZERO
-  .byte $03, "beq", TOKEN_BEQ
-  .byte $03, "clc", TOKEN_CLC
-  .byte $03, "sec", TOKEN_SEC
-  .byte $04, "drop", TOKEN_DROP
-  .byte $03, "dup", TOKEN_DUP
-  .byte $04, "swap", TOKEN_SWAP
-  .byte $04, "over", TOKEN_OVER
-  .byte $05, "rfrom", TOKEN_R_FROM
-  .byte $03, "rto", TOKEN_R_TO
-  .byte $03, "eql", TOKEN_EQL
-  .byte $03, "eqz", TOKEN_EQZ
-  .byte $03, "adc", TOKEN_ADC
-  .byte $03, "sbc", TOKEN_SBC
-  .byte $03, "and", TOKEN_AND
-  .byte $02, "or", TOKEN_OR
-  .byte $03, "eor", TOKEN_EOR
-  .byte $04, "nand", TOKEN_NAND
-  .byte $03, "sub", TOKEN_SUB
-  .byte $04, "noop", TOKEN_NOOP
-  .byte $05, "fetch", TOKEN_LOAD_WORD
-  .byte $05, "store", TOKEN_STORE_WORD
-  .byte $03, "bye", TOKEN_END
-  .byte $03, "add", TOKEN_ADD
-  .byte $05, "print", TOKEN_PRINT_HEX
-  .byte $00

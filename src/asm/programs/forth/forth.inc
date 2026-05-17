@@ -2,29 +2,36 @@
 ; Forth constants and macros
 ;
 
+; shared Forth zero-page contract, stack bases, and token IDs
 .ifndef FORTH_INC
 FORTH_INC = 1
 
-TOKEN = $20
-TEMP_LO = $21
-TEMP_HI = $22
-IP_LO = $23
-IP_HI = $24
-TARGET_LO = $25
-TARGET_HI = $26
-SP = $27
-RP = $28
-WORD_LO = $29 
-WORD_HI = $2A
-WORD_LEN = $2B
-WORD_IDX = $2C
-SCRATCH_IDX = $2D
+; zero-page workspace
+TOKEN = $20         ; current token byte
+TEMP_LO = $21       ; scratch byte / low temp
+TEMP_HI = $22       ; scratch byte / high temp
+IP_LO = $23         ; interpreter IP low byte
+IP_HI = $24         ; interpreter IP high byte
+TARGET_LO = $25     ; dispatch / indirect address low byte
+TARGET_HI = $26     ; dispatch / indirect address high byte
+SP = $27            ; data stack pointer
+RP = $28            ; return stack pointer
+WORD_LO = $29       ; current input word pointer low byte
+WORD_HI = $2A       ; current input word pointer high byte
+WORD_LEN = $2B      ; current input word length
+HEAP_CURR_LO = $2C  ; current heap record low byte
+HEAP_CURR_HI = $2D  ; current heap record high byte
+HEAP_NEXT_LO = $2E  ; next heap record low byte
+HEAP_NEXT_HI = $2F  ; next heap record high byte
+SCRATCH_IDX = $30   ; scratch bytecode write index
 
+; fixed runtime buffers
 STACK_BASE = $0300
 RETURN_BASE = $0400
 INPUT_BASE = $0500
 SCRATCH_BASE = $0600
 
+; token IDs
 TOKEN_INVALID = $00
 TOKEN_END = $01
 TOKEN_CALL = $02
@@ -57,6 +64,7 @@ TOKEN_LITERAL = $1C
 TOKEN_ADD = $1D
 TOKEN_PRINT_HEX = $1E
 
+; increment IP by one byte
 .macro INC_IP
   inc IP_LO
   bne :+
@@ -64,18 +72,29 @@ TOKEN_PRINT_HEX = $1E
 :
 .endmacro
 
+; increment HEAP_CURR by one byte
+.macro INC_HEAP_CURR
+  inc HEAP_CURR_LO
+  bne :+
+  inc HEAP_CURR_HI
+:
+.endmacro
+
+; fetch byte at IP into A and advance IP
 .macro FETCH_IP
   ldy #0
   lda (IP_LO),y
   INC_IP
 .endmacro
 
+; read the top stack cell into A(low)/X(high)
 .macro PEEK_AX
   ldy SP
   lda STACK_BASE,y
   ldx STACK_BASE+1,y
 .endmacro
 
+; push A(low)/X(high) onto the data stack
 .macro PUSH_AX
   sta TEMP_LO
 
@@ -90,6 +109,7 @@ TOKEN_PRINT_HEX = $1E
   sta STACK_BASE,y
 .endmacro
 
+; pop the top stack cell into A(low)/X(high)
 .macro POP_AX
   ldy SP
   lda STACK_BASE,y
@@ -100,6 +120,7 @@ TOKEN_PRINT_HEX = $1E
   inc SP
 .endmacro
 
+; push A(low)/X(high) onto the return stack
 .macro PUSH_RETURN_AX
   sta TEMP_LO
 
@@ -114,6 +135,7 @@ TOKEN_PRINT_HEX = $1E
   sta RETURN_BASE,y
 .endmacro
 
+; pop the top return-stack cell into A(low)/X(high)
 .macro POP_RETURN_AX
   ldy RP
   lda RETURN_BASE,y

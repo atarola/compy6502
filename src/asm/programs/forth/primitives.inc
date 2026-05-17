@@ -1,104 +1,81 @@
 ; ( -- )
-branch:
+prim_branch:
   jmp next
 
 ; ( flag -- )
-branch_if_zero:
+prim_branch_if_zero:
   jmp next
 
 ; ( flag -- )
-beq_word:
+prim_beq:
   jmp next
 
 ; ( -- )
-clc_word:
+prim_clc:
   jmp next
 
 ; ( -- )
-sec_word:
+prim_sec:
   jmp next
 
 ; ( x -- )
-drop:
+prim_drop:
   jmp next
 
 ; ( x -- x x )
-dup:
+prim_dup:
   jmp next
 
 ; ( a b -- b a )
-swap:
+prim_swap:
   jmp next
 
 ; ( a b -- a b a )
-over:
+prim_over:
   jmp next
 
 ; ( -- x )
-r_from:
+prim_r_from:
   jmp next
 
 ; ( x -- )
-r_to:
+prim_r_to:
   jmp next
 
 ; ( a b -- flag )
-eql:
+prim_eql:
   jmp next
 
 ; ( a -- flag )
-eqz:
+prim_eqz:
   jmp next
 
 ; ( a b -- a+b )
-adc_word:
+prim_adc:
   jmp next
 
 ; ( a b -- a-b )
-sbc_word:
+prim_sbc:
   jmp next
 
 ; ( a b -- a&b )
-and_word:
+prim_and:
   jmp next
 
 ; ( a b -- a|b )
-or_word:
+prim_or:
   jmp next
 
 ; ( a b -- a^b )
-eor_word:
+prim_eor:
   jmp next
 
 ; ( a b -- ~(a & b) )
-nand:
-  jmp next
-
-; ( a b -- a-b )
-sub_word:
-  jmp next
-
-; ( -- )
-noop:
-  jmp next
-
-; ( addr -- x )
-load_word:
-  jmp next
-
-; ( x addr -- )
-store_word:
-  jmp next
-
-; ( -- n )
-literal:
-  FETCH_IP
-  ldx #$00
-  PUSH_AX
+prim_nand:
   jmp next
 
 ; ( a b -- a+b )
-add:
+prim_add:
   ldx SP
   lda STACK_BASE,x
   clc
@@ -111,4 +88,56 @@ add:
 
   inc SP
   inc SP
+  jmp next
+
+; ( a b -- a-b )
+prim_sub:
+  jmp next
+
+; ( -- )
+prim_noop:
+  jmp next
+
+; ( addr -- x )
+prim_load:
+  jmp next
+
+; ( x addr -- )
+prim_store:
+  jmp next
+
+; ( -- n )
+prim_literal:
+  FETCH_IP
+  ldx #$00
+  PUSH_AX
+  jmp next
+
+; ( -- )
+prim_end:
+  lda #$0D
+  jsr ACIA_PUTC
+
+  lda #$0A
+  jsr ACIA_PUTC
+
+  jmp WOZMON
+
+; ( -- )
+prim_print_hex:
+  ldx SP
+
+  lda STACK_BASE + 1,x ; high byte
+  jsr BYTE_TO_HEX
+  jsr ACIA_PUTC
+  txa
+  jsr ACIA_PUTC
+
+  ldx SP
+  lda STACK_BASE,x     ; low byte
+  jsr BYTE_TO_HEX
+  jsr ACIA_PUTC
+  txa
+  jsr ACIA_PUTC
+
   jmp next

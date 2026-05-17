@@ -1,9 +1,11 @@
+; initialize VM state and enter the shell
 boot:
   lda #$FF
   sta SP
   sta RP
   jmp shell
 
+; point IP at the scratch buffer and start executing it
 execute:
   lda #<SCRATCH_BASE
   sta IP_LO
@@ -11,6 +13,7 @@ execute:
   lda #>SCRATCH_BASE
   sta IP_HI
 
+; fetch the next token and dispatch through primative_table
 next:
   FETCH_IP
   sta TOKEN
@@ -25,6 +28,7 @@ next:
   
   jmp (TARGET_LO)
 
+; primitive call: save IP and jump through body_table
 call:
   lda IP_LO
   ldx IP_HI
@@ -42,15 +46,18 @@ call:
 
   jmp next
 
+; primitive return: restore IP from the return stack
 return:
   POP_RETURN_AX
   sta IP_LO
   stx IP_HI
   jmp next
 
+; token target that goes back to the shell prompt
 shell_return:
   jmp shell
 
+; fatal VM error: print ! and return to Wozmon
 invalid:
   lda #'!'
   jsr ACIA_PUTC
@@ -63,73 +70,42 @@ invalid:
 
   jmp WOZMON
 
-end:
-  lda #$0D
-  jsr ACIA_PUTC
-
-  lda #$0A
-  jsr ACIA_PUTC
-
-  jmp WOZMON
-
-print_hex:
-  ldx SP
-
-  lda STACK_BASE + 1,x ; high byte
-  jsr BYTE_TO_HEX
-  jsr ACIA_PUTC
-  txa 
-  jsr ACIA_PUTC
-
-  ldx SP
-  lda STACK_BASE,x     ; low byte
-  jsr BYTE_TO_HEX
-  jsr ACIA_PUTC
-  txa 
-  jsr ACIA_PUTC
-
-  jmp next
-
+; token dispatch table for VM primitives
 primative_table:
   .word invalid
-  .word end
+  .word prim_end
   .word call
   .word return
   .word shell_return
-  .word branch
-  .word branch_if_zero
-  .word beq_word
-  .word clc_word
-  .word sec_word
-  .word drop
-  .word dup
-  .word swap
-  .word over
-  .word r_from
-  .word r_to
-  .word eql
-  .word eqz
-  .word adc_word
-  .word sbc_word
-  .word and_word
-  .word or_word
-  .word eor_word
-  .word nand
-  .word sub_word
-  .word noop
-  .word load_word
-  .word store_word
-  .word literal
-  .word add
-  .word print_hex
+  .word prim_branch
+  .word prim_branch_if_zero
+  .word prim_beq
+  .word prim_clc
+  .word prim_sec
+  .word prim_drop
+  .word prim_dup
+  .word prim_swap
+  .word prim_over
+  .word prim_r_from
+  .word prim_r_to
+  .word prim_eql
+  .word prim_eqz
+  .word prim_adc
+  .word prim_sbc
+  .word prim_and
+  .word prim_or
+  .word prim_eor
+  .word prim_nand
+  .word prim_sub
+  .word prim_noop
+  .word prim_load
+  .word prim_store
+  .word prim_literal
+  .word prim_add
+  .word prim_print_hex
 
 primative_table_used = (* - primative_table) / 2
 
 .repeat 128 - primative_table_used
   .word call
-.endrepeat
-
-body_table:
-.repeat 128
-  .word invalid
 .endrepeat
