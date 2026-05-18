@@ -87,11 +87,30 @@ TOKEN_PRINT_HEX = $1E
   INC_IP
 .endmacro
 
-; read the top stack cell into A(low)/X(high)
-.macro PEEK_AX
+; read stack cell offset from SP: 0 = SP cell, 1 = one cell below, ...
+.macro PEEK_AX cell
   ldy SP
-  lda STACK_BASE,y
-  ldx STACK_BASE+1,y
+  .ifblank cell
+    lda STACK_BASE,y
+    ldx STACK_BASE+1,y
+  .else
+    lda STACK_BASE + ((cell) * 2),y
+    ldx STACK_BASE + ((cell) * 2) + 1,y
+  .endif
+.endmacro
+
+; write A(low)/X(high) to stack cell offset from SP: 0 = SP cell, 1 = one cell below, ...
+.macro POKE_AX cell
+  ldy SP
+  .ifblank cell
+    sta STACK_BASE,y
+    txa
+    sta STACK_BASE+1,y
+  .else
+    sta STACK_BASE + ((cell) * 2),y
+    txa
+    sta STACK_BASE + ((cell) * 2) + 1,y
+  .endif
 .endmacro
 
 ; push A(low)/X(high) onto the data stack
@@ -107,6 +126,20 @@ TOKEN_PRINT_HEX = $1E
   ldy SP
   lda TEMP_LO
   sta STACK_BASE,y
+.endmacro
+
+; push true flag onto the data stack
+.macro PUSH_TRUE
+  lda #$FF
+  ldx #$FF
+  PUSH_AX
+.endmacro
+
+; push false flag onto the data stack
+.macro PUSH_FALSE
+  lda #$00
+  ldx #$00
+  PUSH_AX
 .endmacro
 
 ; pop the top stack cell into A(low)/X(high)
