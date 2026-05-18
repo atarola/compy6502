@@ -39,6 +39,7 @@ INPUT_BASE = $0500
 SCRATCH_BASE = $0600
 
 ; token IDs
+; when adding make sure you update program.inc
 TOKEN_INVALID = $00
 TOKEN_END = $01
 TOKEN_CALL = $02
@@ -73,6 +74,11 @@ TOKEN_PRINT_HEX = $1E
 TOKEN_DEF = $1F
 TOKEN_ENDDEF = $20
 
+; shell state
+STATE_INTERPRET = $00
+STATE_WORD_CAPTURE = $01
+STATE_PAYLOAD_CAPTURE = $02
+
 ; increment IP by one byte
 .macro INC_IP
   inc IP_LO
@@ -86,6 +92,14 @@ TOKEN_ENDDEF = $20
   inc HEAP_CURR_LO
   bne :+
   inc HEAP_CURR_HI
+:
+.endmacro
+
+; increment COMP_WRITE_PTR by one byte
+.macro INC_COMP_WRITE_PTR
+  inc COMP_WRITE_PTR_LO
+  bne :+
+  inc COMP_WRITE_PTR_HI
 :
 .endmacro
 

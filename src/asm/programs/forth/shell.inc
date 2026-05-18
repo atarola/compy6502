@@ -72,14 +72,14 @@ shell:
 @word_end_space:
   sty WORD_LEN
   phx
-  jsr find_token
+  jsr resolve_word
   plx
   jmp @find_word_start
 
 ; emit the final word and finish the line
 @word_end_line:
   sty WORD_LEN
-  jsr find_token
+  jsr resolve_word
   jmp @execute_line
 
 ; append shell return and run the scratch buffer
@@ -89,7 +89,6 @@ shell:
   sta SCRATCH_BASE,y
   inc SCRATCH_IDX
   jmp execute
-
 
 resolve_word:
   lda SHELL_MODE
@@ -136,25 +135,155 @@ resolve_interpret_word:
   lda TEMP_LO
   sta SCRATCH_BASE,y
   inc SCRATCH_IDX
-
   rts
 
 @handle_def:
-  rts
+  lda DICT_NEXT_TOKEN
+  sta COMP_RESERVED_TOKEN
+  inc DICT_NEXT_TOKEN
+  lda STATE_WORD_CAPTURE
+  sta SHELL_MODE
+  rts 
 
 resolve_defname_word:
+  lda WORD_HI
+  sta COMP_WORD_HI
+
+  lda WORD_LO
+  sta COMP_WORD_LO
+
+  lda WORD_LEN
+  sta COMP_WORD_LEN
+
+  lda HEAP_FREE_LO
+  sta COMP_WRITE_PTR_LO
+
+  lda HEAP_FREE_HI
+  sta COMP_WRITE_PTR_HI
+
+  lda STATE_PAYLOAD_CAPTURE
+  sta SHELL_MODE
   rts
 
 resolve_compile_word:
+  jsr find_name
+  bcc @handle_name
+
+  jsr parse_hex_byte
+  bcc @handle_literal
+
+  jmp shell_error
+
+@handle_name:
+  cmp #TOKEN_ENDDEF
+  beq @handle_enddef
+
+  ldy #$00
+  sta (COMP_WRITE_PTR_LO),y
+  INC_COMP_WRITE_PTR
   rts
 
-; resolve a word to either a known token or a hex literal
-find_token:
+; append TOKEN_LITERAL plus the parsed byte value
+@handle_literal:
+  sta TEMP_LO
+  ldy #$00
 
+  lda #TOKEN_LITERAL
+  sta (COMP_WRITE_PTR_LO),y
+  INC_COMP_WRITE_PTR
 
-; append a token byte to scratch
-@emit_token:
+  lda TEMP_LO
+  sta (COMP_WRITE_PTR_LO),y
+  INC_COMP_WRITE_PTR
 
+  rts
+
+@handle_enddef:
+  ldy #$00
+  
+  ; add the return to the payload
+  lda #TOKEN_RETURN
+  sta (COMP_WRITE_PTR_LO),y 
+  INC_COMP_WRITE_PTR
+
+  ; set the value the tail points to to the current write pointer
+  lda HEAP_TAIL_LO
+  sta TEMP_LO
+  lda HEAP_TAIL_HI
+  sta TEMP_HI
+
+  ldy #$00
+  lda COMP_WRITE_PTR_LO
+  sta (TEMP_LO),y
+  iny
+  lda COMP_WRITE_PTR_HI
+  sta (TEMP_LO),y
+
+  ; set the new tail to be the current ptr
+  lda COMP_WRITE_PTR_LO
+  sta HEAP_TAIL_LO
+  lda COMP_WRITE_PTR_HI
+  sta HEAP_TAIL_HI
+
+  ; write the sentinel for the end of the heap
+  ldy #$00
+  lda #$FF
+  sta (COMP_WRITE_PTR_LO),y 
+  INC_COMP_WRITE_PTR
+  sta (COMP_WRITE_PTR_LO),y 
+  INC_COMP_WRITE_PTR
+
+  ; write the length then name, incrementing the write pointer
+  ldy #$00
+  lda (WORD_LO),y
+  sta TEMP_LO          
+  sta (COMP_WRITE_PTR_LO),y
+
+  tax
+  beq @advance
+
+@copy_loop:
+  iny
+  lda (WORD_LO),y
+  sta (COMP_WRITE_PTR_LO),y
+  dex
+  bne @copy_loop
+
+@advance:
+  lda COMP_WRITE_PTR_LO
+  clc
+  adc TEMP_LO
+  sta COMP_WRITE_PTR_LO
+  bcc :+
+  inc COMP_WRITE_PTR_HI
+:
+  inc COMP_WRITE_PTR_LO         
+  bne :+
+  inc COMP_WRITE_PTR_HI
+:
+
+  ; add the token at the end of the node
+  ldy #00
+  ldx COMP_RESERVED_TOKEN
+  stx (COMP_WRITE_PTR_LO),y
+  INC_COMP_WRITE_PTR
+
+  ; add the top of heap to the body table at the right place
+  lda HEAP_FREE_LO
+  sta body_table,x
+  
+  inx
+  lda HEAP_FREE_HI
+  sta body_table,x
+
+  ; set the top of heap to the write pointer
+  lda COMP_WRITE_PTR_LO
+  sta HEAP_FREE_LO
+
+  lda COMP_WRITE_PTR_HI
+  sta HEAP_FREE_HI
+
+  rts 
 
 ; scan through the name records in the heap
 find_name:

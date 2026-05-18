@@ -3,8 +3,11 @@
 ; program space, to be overloaded during runtime or load
 ;
 
+DICT_NEXT_TOKEN: .byte TOKEN_ENDDEF + 1
+
 HEAP_FREE_LO: .byte <heap_seed_end ; empty space address low byte
 HEAP_FREE_HI: .byte >heap_seed_end ; empty space address high byte
+
 HEAP_TAIL_LO: .byte <print_record  ; name list tail low byte
 HEAP_TAIL_HI: .byte >print_record  ; name list tail high byte
 
