@@ -3,6 +3,10 @@ boot:
   lda #$FF
   sta SP
   sta RP
+
+  lda #STATE_INTERPRET
+  sta SHELL_MODE
+
   jmp shell
 
 ; point IP at the scratch buffer and start executing it

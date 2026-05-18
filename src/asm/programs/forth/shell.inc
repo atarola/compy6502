@@ -5,7 +5,7 @@ shell:
 
   lda #$0D
   jsr ACIA_PUTC
-  
+
   lda #'>'
   jsr ACIA_PUTC
 
@@ -141,7 +141,7 @@ resolve_interpret_word:
   lda DICT_NEXT_TOKEN
   sta COMP_RESERVED_TOKEN
   inc DICT_NEXT_TOKEN
-  lda STATE_WORD_CAPTURE
+  lda #STATE_WORD_CAPTURE
   sta SHELL_MODE
   rts 
 
@@ -161,7 +161,7 @@ resolve_defname_word:
   lda HEAP_FREE_HI
   sta COMP_WRITE_PTR_HI
 
-  lda STATE_PAYLOAD_CAPTURE
+  lda #STATE_PAYLOAD_CAPTURE
   sta SHELL_MODE
   rts
 
@@ -200,7 +200,7 @@ resolve_compile_word:
 
 @handle_enddef:
   ldy #$00
-  
+
   ; add the return to the payload
   lda #TOKEN_RETURN
   sta (COMP_WRITE_PTR_LO),y 
@@ -235,21 +235,22 @@ resolve_compile_word:
 
   ; write the length then name, incrementing the write pointer
   ldy #$00
-  lda (WORD_LO),y
-  sta TEMP_LO          
+  lda COMP_WORD_LEN
+  sta TEMP_LO
   sta (COMP_WRITE_PTR_LO),y
+  INC_COMP_WRITE_PTR
 
-  tax
-  beq @advance
+  ldx COMP_WORD_LEN
+  beq @after_copy
 
 @copy_loop:
-  iny
-  lda (WORD_LO),y
+  lda (COMP_WORD_LO),y
   sta (COMP_WRITE_PTR_LO),y
+  iny
   dex
   bne @copy_loop
 
-@advance:
+@after_copy:
   lda COMP_WRITE_PTR_LO
   clc
   adc TEMP_LO
@@ -257,18 +258,16 @@ resolve_compile_word:
   bcc :+
   inc COMP_WRITE_PTR_HI
 :
-  inc COMP_WRITE_PTR_LO         
-  bne :+
-  inc COMP_WRITE_PTR_HI
-:
 
   ; add the token at the end of the node
   ldy #00
-  ldx COMP_RESERVED_TOKEN
-  stx (COMP_WRITE_PTR_LO),y
+  lda COMP_RESERVED_TOKEN
+  sta (COMP_WRITE_PTR_LO),y
   INC_COMP_WRITE_PTR
 
   ; add the top of heap to the body table at the right place
+  asl
+  tax
   lda HEAP_FREE_LO
   sta body_table,x
   
@@ -283,7 +282,10 @@ resolve_compile_word:
   lda COMP_WRITE_PTR_HI
   sta HEAP_FREE_HI
 
-  rts 
+  ; set the state back to interpret
+  lda #STATE_INTERPRET
+  sta SHELL_MODE
+  rts
 
 ; scan through the name records in the heap
 find_name:
@@ -299,12 +301,12 @@ find_name:
 
   lda (HEAP_CURR_LO),y
   sta HEAP_NEXT_LO
-  
   INC_HEAP_CURR
+
   lda (HEAP_CURR_LO),y
   sta HEAP_NEXT_HI
-
   INC_HEAP_CURR
+
   lda (HEAP_CURR_LO),y
   cmp WORD_LEN
   bne @next_word
