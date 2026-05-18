@@ -15,6 +15,14 @@ body_table:
 
 ; dictionary heap: linked name and payload records
 heap:
+def_record:
+  .word enddef_record
+  .byte $03, "def", TOKEN_DEF
+
+enddef_record:
+  .word branch_record
+  .byte $06, "enddef", TOKEN_ENDDEF
+
 branch_record:
   .word bez_record
   .byte $06, "branch", TOKEN_BRANCH

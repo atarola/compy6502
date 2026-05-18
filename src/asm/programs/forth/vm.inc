@@ -103,6 +103,8 @@ primative_table:
   .word prim_literal
   .word prim_add
   .word prim_print_hex
+  .word prim_def
+  .word prim_enddef
 
 primative_table_used = (* - primative_table) / 2
 

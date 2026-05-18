@@ -24,6 +24,13 @@ HEAP_CURR_HI = $2D  ; current heap record high byte
 HEAP_NEXT_LO = $2E  ; next heap record low byte
 HEAP_NEXT_HI = $2F  ; next heap record high byte
 SCRATCH_IDX = $30   ; scratch bytecode write index
+SHELL_MODE = $31    ; front-end state: interpret / def name / compile
+COMP_RESERVED_TOKEN = $32 ; token reserved for current definition
+COMP_WORD_LO = $33  ; current definition name pointer low byte
+COMP_WORD_HI = $34  ; current definition name pointer high byte
+COMP_WORD_LEN = $35 ; current definition name length
+COMP_WRITE_PTR_LO = $36 ; staged heap write pointer low byte
+COMP_WRITE_PTR_HI = $37 ; staged heap write pointer high byte
 
 ; fixed runtime buffers
 STACK_BASE = $0300
@@ -63,6 +70,8 @@ TOKEN_STORE_WORD = $1B
 TOKEN_LITERAL = $1C
 TOKEN_ADD = $1D
 TOKEN_PRINT_HEX = $1E
+TOKEN_DEF = $1F
+TOKEN_ENDDEF = $20
 
 ; increment IP by one byte
 .macro INC_IP

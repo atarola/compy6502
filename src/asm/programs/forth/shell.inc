@@ -90,27 +90,41 @@ shell:
   inc SCRATCH_IDX
   jmp execute
 
-; 
 
-; resolve a word to either a known token or a hex literal
-find_token:
-  jsr find_name
-  bcc @emit_token
+resolve_word:
+  lda SHELL_MODE
+  cmp #STATE_INTERPRET
+  beq resolve_interpret_word
 
-  jsr parse_hex_byte
-  bcc @emit_literal
+  cmp #STATE_WORD_CAPTURE
+  beq resolve_defname_word
+
+  cmp #STATE_PAYLOAD_CAPTURE
+  beq resolve_compile_word
 
   jmp shell_error
 
-; append a token byte to scratch
-@emit_token:
+; resolve a word during the interpret state
+resolve_interpret_word:
+  jsr find_name
+  bcc @handle_name
+
+  jsr parse_hex_byte
+  bcc @handle_literal
+
+  jmp shell_error
+
+@handle_name:
+  cmp #TOKEN_DEF
+  beq @handle_def
+
   ldy SCRATCH_IDX
   sta SCRATCH_BASE,y
   inc SCRATCH_IDX
   rts
 
 ; append TOKEN_LITERAL plus the parsed byte value
-@emit_literal:
+@handle_literal:
   sta TEMP_LO
 
   ldy SCRATCH_IDX
@@ -124,6 +138,23 @@ find_token:
   inc SCRATCH_IDX
 
   rts
+
+@handle_def:
+  rts
+
+resolve_defname_word:
+  rts
+
+resolve_compile_word:
+  rts
+
+; resolve a word to either a known token or a hex literal
+find_token:
+
+
+; append a token byte to scratch
+@emit_token:
+
 
 ; scan through the name records in the heap
 find_name:

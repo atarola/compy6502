@@ -10,6 +10,14 @@ prim_branch_if_zero:
 prim_beq:
   jmp next
 
+; def ( -- )
+prim_def:
+  jmp next
+
+; enddef ( -- )
+prim_enddef:
+  jmp next
+
 ; clc ( -- )
 prim_clc:
   clc
