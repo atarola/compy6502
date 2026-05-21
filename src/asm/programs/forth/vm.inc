@@ -90,6 +90,7 @@ primative_table:
   .word prim_dup
   .word prim_swap
   .word prim_over
+  .word prim_rot
   .word prim_r_from
   .word prim_r_to
   .word prim_eql

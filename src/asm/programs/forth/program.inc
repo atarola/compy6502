@@ -59,8 +59,12 @@ swap_record:
   .byte $04, "swap", TOKEN_SWAP
 
 over_record:
-  .word rfrom_record
+  .word rot_record
   .byte $04, "over", TOKEN_OVER
+
+rot_record:
+  .word rfrom_record
+  .byte $03, "rot", TOKEN_ROT
 
 rfrom_record:
   .word rto_record

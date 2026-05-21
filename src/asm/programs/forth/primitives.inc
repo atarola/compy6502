@@ -59,6 +59,24 @@ prim_over:
   PUSH_AX
   jmp next
 
+; rot ( a b c -- b c a )
+prim_rot:
+  PEEK_AX 2
+  PUSH_RETURN_AX
+  POP_AX
+  PUSH_RETURN_AX
+  POP_AX
+  PUSH_RETURN_AX
+  POP_AX
+  POP_RETURN_AX
+  PUSH_AX
+  POP_RETURN_AX
+  PUSH_AX
+  POP_RETURN_AX
+  PUSH_AX
+
+  jmp next
+
 ; r> ( -- x )
 prim_r_from:
   POP_RETURN_AX
