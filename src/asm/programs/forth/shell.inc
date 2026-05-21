@@ -20,12 +20,32 @@ shell:
   cmp #$0D
   beq @load_end
 
+  cmp #$08
+  beq @backspace
+
+  cmp #$7F
+  beq @backspace
+
   pha
   jsr ACIA_PUTC
   pla
 
   sta INPUT_BASE,x
   inx
+  jmp @load_char
+
+@backspace:
+  cpx #$00
+  beq @load_char
+
+  dex
+
+  lda #$08
+  jsr ACIA_PUTC
+  lda #' '
+  jsr ACIA_PUTC
+  lda #$08
+  jsr ACIA_PUTC
   jmp @load_char
 
 ; terminate the input line and reset per-line state
