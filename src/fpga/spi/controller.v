@@ -35,6 +35,11 @@ module controller (
   reg [7:0] data_temp;
   reg [1:0] reg_temp;
 
+  wire [5:0] clk_divider =
+      (conf[4:3] == 2'b00) ? 6'd63 :  // 125 kHz
+      (conf[4:3] == 2'b01) ? 6'd31 :  // 250 kHz
+      (conf[4:3] == 2'b10) ? 6'd15 :  // 500 kHz
+                              6'd7;   // 1 MHz
   wire [7:0] rx_data;
   wire write_pos_tick;
   wire write_neg_tick;
@@ -57,6 +62,7 @@ module controller (
       .resb(resb),
       .start(start_transfer),
       .tx_data(tx_data),
+      .clk_divider(clk_divider),
       .rx_data(rx_data),
       .busy(engine_busy),
       .sck(sck),

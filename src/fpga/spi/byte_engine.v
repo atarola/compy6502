@@ -5,6 +5,7 @@ module byte_engine (
     input resb,
     input start,
     input [7:0] tx_data,
+    input [5:0] clk_divider,
     output [7:0] rx_data,
     output reg busy,
     output reg sck,
@@ -20,18 +21,12 @@ module byte_engine (
   reg [1:0] state;
   reg [1:0] next_state;
   reg [3:0] bit_count;
+  reg [5:0] active_clk_divider;
   reg [5:0] clk_div;
-  reg div_resb;
 
-  wire shift_tick = (clk_div == 6'b111111);
+  wire shift_tick = (clk_div == active_clk_divider);
   wire sipo_shift_now = state == StateTransfer && shift_tick && sck == 0;
   wire piso_shift_now = state == StateTransfer && shift_tick && sck == 1;
-
-  binary_counter clock_divider (
-      .clk  (clk),
-      .resb (div_resb),
-      .count(clk_div)
-  );
 
   piso_register piso (
       .clk(clk),
@@ -54,7 +49,6 @@ module byte_engine (
     next_state = state;
     busy = state != StateIdle || start;
     load_enable = 1'b0;
-    div_resb = 1'b1;
 
     if (state == StateIdle && start) begin
       next_state = StateLoad;
@@ -63,7 +57,6 @@ module byte_engine (
     if (state == StateLoad) begin
       next_state = StateTransfer;
       load_enable = 1'b1;
-      div_resb = 1'b0;
     end
 
     if (state == StateTransfer) begin
@@ -82,18 +75,29 @@ module byte_engine (
       state <= StateIdle;
       sck <= 1'b0;
       bit_count <= 4'd0;
+      active_clk_divider <= 6'd63;
+      clk_div <= 6'd0;
     end else begin
       state <= next_state;
 
+      if (state == StateLoad) begin
+        active_clk_divider <= clk_divider;
+        clk_div <= 6'd0;
+      end
+
       if (state == StateTransfer && shift_tick && (bit_count < 4'd8 || sck)) begin
+        clk_div <= 6'd0;
         sck <= !sck;
         if (!sck) begin
           bit_count <= bit_count + 1;
         end
+      end else if (state == StateTransfer) begin
+        clk_div <= clk_div + 1;
       end
 
       if (state == StateDone) begin
         bit_count <= 4'd0;
+        clk_div <= 6'd0;
         sck <= 1'b0;
       end
     end

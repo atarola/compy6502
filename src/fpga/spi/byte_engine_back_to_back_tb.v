@@ -24,6 +24,7 @@ module byte_engine_back_to_back_tb;
       .resb(resb),
       .start(start),
       .tx_data(tx_data),
+      .clk_divider(6'd63),
       .rx_data(rx_data),
       .busy(busy),
       .sck(sck),

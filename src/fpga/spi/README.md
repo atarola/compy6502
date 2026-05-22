@@ -61,7 +61,8 @@ The SPI Controller is a memory-mapped SPI peripheral for a 6502-style bus. It pr
 | --- | --- | --- |
 | `1:0` | CS Select | Selects one of four SPI chip-select outputs. |
 | `2` | CS Enable | `1` asserts selected chip select. `0` releases all chip selects. |
-| `7:3` | Reserved | Write `0`. |
+| `4:3` | Clock Select | Selects one of four SPI clock rates. |
+| `7:5` | Reserved | Write `0`. |
 
 Chip-select output when `CS Enable = 1`:
 
@@ -73,6 +74,15 @@ Chip-select output when `CS Enable = 1`:
 | `0b11` | `0b0111` |
 
 When `CS Enable = 0`, `SPI_CSB[3:0] = 0b1111`.
+
+Clock rate setting:
+
+| Setting | Result |
+| --- | --- |
+| `0b00` | `125 kHz` |
+| `0b01` | `250 kHz` |
+| `0b10` | `500 kHz` |
+| `0b11` | `1 MHz` |
 
 ## 5. Status Register
 | Bit | Name | Description |
