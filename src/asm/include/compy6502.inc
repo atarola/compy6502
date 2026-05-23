@@ -78,4 +78,51 @@ BYTE_TO_HEX = JUMP_BASE + (3 * 2)
 ; clobbers: flags
 HEX_TO_NIBBLE = JUMP_BASE + (3 * 3)
 
+; Clear a Pascal string.
+; in:  K_PTR = Pascal string buffer
+; out: none
+; clobbers: A, Y, flags
+STR_INIT = JUMP_BASE + (3 * 4)
+
+; Read the current Pascal string length.
+; in:  K_PTR = Pascal string buffer
+; out: A = length
+; clobbers: A, Y, flags
+STR_LEN = JUMP_BASE + (3 * 5)
+
+; Append one byte to a Pascal string.
+; in:  K_PTR = Pascal string buffer
+;      A     = byte to append
+; out: carry clear = appended
+;      carry set   = no room / append failed
+; clobbers: A, X, Y, flags
+STR_APPEND = JUMP_BASE + (3 * 6)
+
+; Remove the last byte from a Pascal string.
+; in:  K_PTR = Pascal string buffer
+; out: A = removed byte
+;      carry clear = removed
+;      carry set   = string was empty
+; clobbers: A, Y, flags
+STR_POP = JUMP_BASE + (3 * 7)
+
+;
+; Helper macros
+; 
+
+.macro INC_K_PTR
+  inc K_PTR_LO
+  bne :+
+  inc K_PTR_HI
+:
+.endmacro
+
+.macro DEC_K_PTR
+  lda K_PTR_LO
+  bne :+
+  dec K_PTR_HI
+:
+  dec K_PTR_LO
+.endmacro
+
 .endif
