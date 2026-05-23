@@ -10,6 +10,7 @@ COMPY6502_INC = 1
 ;
 
 WOZMON = $F500
+IRQ_DISPATCHER = irq_dispatch
 
 ;
 ; ACIA
@@ -25,6 +26,29 @@ ACIA_CONTROL = ACIA_BASE + 3
 ; ROM ABI
 ;
 
+; Kernel constants
+; $00 thru $1F are reserved for kernel work
+
+; userland IRQ hook, initalized to a noop
+IRQ_HOOK_LO  = $00
+IRQ_HOOK_HI  = $01
+IRQ_HOOK = IRQ_HOOK_LO
+
+K_PTR_LO = $02
+K_PTR_HI = $03
+K_PTR = K_PTR_LO
+
+K_PTR2_LO = $04
+K_PTR2_HI = $05
+K_PTR2 = K_PTR2_LO
+
+K_TMP0 = $06
+K_TMP1 = $07
+K_TMP2 = $08
+K_TMP3 = $09
+
+; Kernel entry jump table
+; can `jsr ACIA_GETC` to execute these subroutines
 JUMP_BASE = $C100
 
 ; Write byte to ACIA.
