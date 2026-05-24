@@ -4,12 +4,6 @@ acia_putc_trampoline:
 acia_getc_trampoline:
   jmp acia_getc
 
-byte_to_hex_trampoline:
-  jmp byte_to_hex
-
-hex_to_nibble_trampoline:
-  jmp hex_to_nibble
-
 str_init_trampoline:
   jmp str_init
 
@@ -21,3 +15,12 @@ str_append_trampoline:
 
 str_pop_trampoline:
   jmp str_pop
+
+str_eq_trampoline:
+  jmp str_eq
+
+byte_to_hex_trampoline:
+  jmp byte_to_hex
+
+hex_to_nibble_trampoline:
+  jmp hex_to_nibble

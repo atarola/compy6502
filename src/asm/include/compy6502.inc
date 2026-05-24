@@ -62,32 +62,17 @@ ACIA_PUTC = JUMP_BASE + (3 * 0)
 ; clobbers: A, flags
 ACIA_GETC = JUMP_BASE + (3 * 1)
 
-; Convert byte to ASCII hex characters.
-; in:  A = byte
-; out: A = high ASCII hex character
-;      X = low ASCII hex character
-; clobbers: flags
-BYTE_TO_HEX = JUMP_BASE + (3 * 2)
-
-; Convert ASCII hex character to nibble.
-; in:  A = ASCII hex character
-; out: A = nibble
-;      carry clear = valid
-;      carry set = invalid
-; clobbers: flags
-HEX_TO_NIBBLE = JUMP_BASE + (3 * 3)
-
 ; Clear a Pascal string.
 ; in:  K_PTR = Pascal string buffer
 ; out: none
 ; clobbers: A, Y, flags
-STR_INIT = JUMP_BASE + (3 * 4)
+STR_INIT = JUMP_BASE + (3 * 2)
 
 ; Read the current Pascal string length.
 ; in:  K_PTR = Pascal string buffer
 ; out: A = length
 ; clobbers: A, Y, flags
-STR_LEN = JUMP_BASE + (3 * 5)
+STR_LEN = JUMP_BASE + (3 * 3)
 
 ; Append one byte to a Pascal string.
 ; in:  K_PTR = Pascal string buffer
@@ -95,7 +80,7 @@ STR_LEN = JUMP_BASE + (3 * 5)
 ; out: carry clear = appended
 ;      carry set   = no room / append failed
 ; clobbers: A, X, Y, flags
-STR_APPEND = JUMP_BASE + (3 * 6)
+STR_APPEND = JUMP_BASE + (3 * 4)
 
 ; Remove the last byte from a Pascal string.
 ; in:  K_PTR = Pascal string buffer
@@ -103,7 +88,30 @@ STR_APPEND = JUMP_BASE + (3 * 6)
 ;      carry clear = removed
 ;      carry set   = string was empty
 ; clobbers: A, Y, flags
-STR_POP = JUMP_BASE + (3 * 7)
+STR_POP = JUMP_BASE + (3 * 5)
+
+; Compare two Pascal strings for equality.
+; in:  K_PTR  = left Pascal string
+;      K_PTR2 = right Pascal string
+; out: carry clear = equal
+;      carry set   = not equal
+; clobbers: A, X, Y, flags
+STR_EQ = JUMP_BASE + (3 * 6)
+
+; Convert byte to ASCII hex characters.
+; in:  A = byte
+; out: A = high ASCII hex character
+;      X = low ASCII hex character
+; clobbers: flags
+BYTE_TO_HEX = JUMP_BASE + (3 * 7)
+
+; Convert ASCII hex character to nibble.
+; in:  A = ASCII hex character
+; out: A = nibble
+;      carry clear = valid
+;      carry set = invalid
+; clobbers: flags
+HEX_TO_NIBBLE = JUMP_BASE + (3 * 8)
 
 ;
 ; Helper macros
