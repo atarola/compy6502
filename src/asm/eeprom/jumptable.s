@@ -4,24 +4,6 @@ acia_putc_trampoline:
 acia_getc_trampoline:
   jmp acia_getc
 
-ansi_up_trampoline:
-  jmp ansi_up
-
-ansi_down_trampoline:
-  jmp ansi_down
-
-ansi_cr_trampoline:
-  jmp ansi_cr
-
-ansi_crlf_trampoline:
-  jmp ansi_crlf
-
-ansi_clear_line_trampoline:
-  jmp ansi_clear_line
-
-ansi_cr_clear_line_trampoline:
-  jmp ansi_cr_clear_line
-
 str_init_trampoline:
   jmp str_init
 
@@ -36,12 +18,6 @@ str_pop_trampoline:
 
 str_eq_trampoline:
   jmp str_eq
-
-line_reset_trampoline:
-  jmp line_reset
-
-line_input_trampoline:
-  jmp line_input
 
 byte_to_hex_trampoline:
   jmp byte_to_hex

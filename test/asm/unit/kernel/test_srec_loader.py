@@ -1,23 +1,10 @@
-from pathlib import Path
-
 from asm.unit.base import BaseTest
 INPUT_SCRIPT = b"S1040400AA4D\r"
 END_SCRIPT = b"S9\r"
 BAD_CHECKSUM_SCRIPT = b"S1040400AA4E\r"
 BAD_HEX_SCRIPT = b"S1040400AG4D\r"
 BAD_TYPE_SCRIPT = b"S2040400AA4C\r"
-SREC_LOAD_PATTERN = bytes([0xA2, 0x00, 0x20, 0x03, 0xC1, 0xC9, 0x0D, 0xF0])
-ROM = Path("./bin/compy6502.bin")
-
-
-def srec_loader_caller():
-    rom = ROM.read_bytes()
-    offset = rom.find(SREC_LOAD_PATTERN)
-    if offset == -1:
-        raise AssertionError("could not locate SREC_LOAD in ROM image")
-
-    address = 0x8000 + offset
-    return bytes([0x20, address & 0xFF, address >> 8, 0xEA])
+CALLER = bytes([0x20, 0x14, 0xC2, 0xEA])
 
 
 class TestKernelSrecLoader(BaseTest):
@@ -25,7 +12,7 @@ class TestKernelSrecLoader(BaseTest):
         cpu = self.get_rom_cpu()
 
         cpu.install_acia(INPUT_SCRIPT)
-        cpu.poke(0x0600, srec_loader_caller())
+        cpu.poke(0x0600, CALLER)
         cpu.pc = 0x0600
 
         for _ in range(5000):
@@ -45,7 +32,7 @@ class TestKernelSrecLoader(BaseTest):
         cpu = self.get_rom_cpu()
 
         cpu.install_acia(END_SCRIPT)
-        cpu.poke(0x0600, srec_loader_caller())
+        cpu.poke(0x0600, CALLER)
         cpu.pc = 0x0600
 
         cpu.until_pc(0x0603)
@@ -57,7 +44,7 @@ class TestKernelSrecLoader(BaseTest):
         cpu = self.get_rom_cpu()
 
         cpu.install_acia(BAD_CHECKSUM_SCRIPT)
-        cpu.poke(0x0600, srec_loader_caller())
+        cpu.poke(0x0600, CALLER)
         cpu.pc = 0x0600
 
         cpu.until_pc(0x0603)
@@ -69,7 +56,7 @@ class TestKernelSrecLoader(BaseTest):
         cpu = self.get_rom_cpu()
 
         cpu.install_acia(BAD_HEX_SCRIPT)
-        cpu.poke(0x0600, srec_loader_caller())
+        cpu.poke(0x0600, CALLER)
         cpu.pc = 0x0600
 
         cpu.until_pc(0x0603)
@@ -81,7 +68,7 @@ class TestKernelSrecLoader(BaseTest):
         cpu = self.get_rom_cpu()
 
         cpu.install_acia(BAD_TYPE_SCRIPT)
-        cpu.poke(0x0600, srec_loader_caller())
+        cpu.poke(0x0600, CALLER)
         cpu.pc = 0x0600
 
         cpu.until_pc(0x0603)
