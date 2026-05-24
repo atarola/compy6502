@@ -203,7 +203,7 @@ def task_asm():
             "src/asm/eeprom/main.s",
             "src/asm/eeprom/wozmon.s",
         ],
-        "targets": ["bin/compy6502.bin"],
+        "targets": ["bin/compy6502.bin", "bin/compy6502.dbg"],
     }
 
     yield {

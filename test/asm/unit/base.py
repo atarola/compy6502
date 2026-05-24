@@ -9,13 +9,47 @@ from py65.memory import ObservableMemory
 
 ACIA_DATA = 0xC000
 ACIA_STATUS = 0xC001
+K_PTR_LO = 0x02
+K_PTR_HI = 0x03
+K_PTR2_LO = 0x04
+K_PTR2_HI = 0x05
 
 ASSEMBLE = "ca65 -I ./src/asm/eeprom -I ./src/asm -I ./src -o ./test/asm/bin/{0}.o ./test/asm/{0}.s"
 LINK = "ld65 -C ./src/asm/eeprom/compy6502.x -o ./test/asm/bin/{0}.bin ./test/asm/bin/{0}.o"
 ROM = "./bin/compy6502.bin"
+ROM_DEBUG = Path("./bin/compy6502.dbg")
 
 
 class BaseTest(unittest.TestCase):
+    _rom_symbols = None
+
+    def get_rom_address(self, name):
+        if self._rom_symbols is None:
+            self._rom_symbols = self._load_rom_symbols()
+
+        try:
+            return self._rom_symbols[name]
+        except KeyError as exc:
+            raise AssertionError(f"could not locate {name} in {ROM_DEBUG}") from exc
+
+    def _load_rom_symbols(self):
+        symbols = {}
+
+        for line in ROM_DEBUG.read_text().splitlines():
+            if not line.startswith("sym\t"):
+                continue
+
+            fields = {}
+            for field in line.split("\t", 1)[1].split(","):
+                key, value = field.split("=", 1)
+                fields[key] = value
+
+            name = fields.get("name", "").strip('"')
+            value = fields.get("val")
+            if name and value:
+                symbols[name] = int(value[2:], 16)
+
+        return symbols
 
     def get_cpu(self, filename):
         start, data = self.get_data(filename)
@@ -27,6 +61,20 @@ class BaseTest(unittest.TestCase):
 
         start = int.from_bytes(output[0x7ffc:0x7ffe], byteorder="little")
         return self.make_cpu(start, output)
+
+    def run_sub(self, cpu, name, start=0x0200, a=None, x=None, y=None):
+        address = self.get_rom_address(name)
+        if a is not None:
+            cpu.a = a
+        if x is not None:
+            cpu.x = x
+        if y is not None:
+            cpu.y = y
+
+        cpu.poke(start, bytes([0x20, address & 0xFF, address >> 8, 0xEA]))
+        cpu.pc = start
+        cpu.until_pc(start + 3)
+        return cpu
 
     def make_cpu(self, start, data):
         self.memory = ObservableMemory()
@@ -55,6 +103,17 @@ class BaseTest(unittest.TestCase):
 class TestMPU(mpu65c02.MPU):
     def poke(self, address, data):
         self.memory[address : address + len(data)] = data
+
+    def set_k_ptr(self, address):
+        self.memory[K_PTR_LO] = address & 0xFF
+        self.memory[K_PTR_HI] = address >> 8
+
+    def set_k_ptr2(self, address):
+        self.memory[K_PTR2_LO] = address & 0xFF
+        self.memory[K_PTR2_HI] = address >> 8
+
+    def carry(self):
+        return bool(self.p & 0x01)
 
     def install_acia(self, data=b""):
         if isinstance(data, str):
