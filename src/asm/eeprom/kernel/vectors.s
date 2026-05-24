@@ -12,4 +12,4 @@ NMI_HANDLER:
     rti
 
 IRQ_HANDLER:
-    jmp IRQ_DISPATCHER
+    jmp irq_dispatch

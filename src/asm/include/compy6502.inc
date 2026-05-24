@@ -10,7 +10,6 @@ COMPY6502_INC = 1
 ;
 
 WOZMON = $F500
-IRQ_DISPATCHER = irq_dispatch
 
 ;
 ; ACIA

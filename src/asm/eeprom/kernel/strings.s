@@ -72,6 +72,42 @@ str_pop:
   sec
   rts
 
+; Compare two Pascal strings for equality.
+; in:  K_PTR  = left Pascal string
+;      K_PTR2 = right Pascal string
+; out: carry clear = equal
+;      carry set   = not equal
+; clobbers: A, X, Y, flags
+str_eq:
+  ldy #$00
+  lda (K_PTR),y
+  sta K_TMP0
+  lda (K_PTR2),Y
+  cmp K_TMP0
+  bne @different
+
+  lda (K_PTR),y
+  beq @same
+
+@loop:
+  iny
+  lda (K_PTR),y
+  sta K_TMP1
+  lda (K_PTR2),y
+  cmp K_TMP1
+  bne @different
+  dec K_TMP0 
+  beq @same
+  jmp @loop
+
+@same:
+  clc
+  rts
+
+@different:
+  sec
+  rts
+
 ; Convert a byte to two ASCII hex characters.
 ; in:  A = byte
 ; out: A = high ASCII hex character
