@@ -24,3 +24,6 @@ byte_to_hex_trampoline:
 
 hex_to_nibble_trampoline:
   jmp hex_to_nibble
+
+line_edit_trampoline:
+  jmp line_edit

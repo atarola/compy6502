@@ -113,6 +113,13 @@ BYTE_TO_HEX = JUMP_BASE + (3 * 7)
 ; clobbers: flags
 HEX_TO_NIBBLE = JUMP_BASE + (3 * 8)
 
+; Read and edit one line of input.
+; in:  A     = prompt character
+;      K_PTR = Pascal string buffer
+; out: none
+; clobbers: A, X, flags
+LINE_EDIT = JUMP_BASE + (3 * 9)
+
 ;
 ; Helper macros
 ; 

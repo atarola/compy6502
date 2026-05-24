@@ -62,7 +62,7 @@ class BaseTest(unittest.TestCase):
         start = int.from_bytes(output[0x7ffc:0x7ffe], byteorder="little")
         return self.make_cpu(start, output)
 
-    def run_sub(self, cpu, name, start=0x0200, a=None, x=None, y=None):
+    def run_sub(self, cpu, name, start=0x0200, a=None, x=None, y=None, max_steps=1000):
         address = self.get_rom_address(name)
         if a is not None:
             cpu.a = a
@@ -73,7 +73,7 @@ class BaseTest(unittest.TestCase):
 
         cpu.poke(start, bytes([0x20, address & 0xFF, address >> 8, 0xEA]))
         cpu.pc = start
-        cpu.until_pc(start + 3)
+        cpu.until_pc(start + 3, max_steps=max_steps)
         return cpu
 
     def make_cpu(self, start, data):
