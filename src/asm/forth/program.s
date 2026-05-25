@@ -1,3 +1,5 @@
+.include "include/compy6502.inc"
+.include "forth.inc"
 
 ;
 ; program space, to be overloaded during runtime or load

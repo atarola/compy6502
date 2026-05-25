@@ -1,3 +1,6 @@
+.include "include/compy6502.inc"
+.include "forth.inc"
+
 ; shell prompt and line reader
 shell:
   lda #$0A

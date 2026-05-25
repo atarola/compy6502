@@ -1,3 +1,6 @@
+.include "include/compy6502.inc"
+.include "forth.inc"
+
 ; branch ( -- )
 prim_branch:
   jmp next

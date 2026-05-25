@@ -1,3 +1,6 @@
+.include "include/compy6502.inc"
+.include "forth.inc"
+
 ; initialize VM state and enter the shell
 boot:
   lda #$FF
