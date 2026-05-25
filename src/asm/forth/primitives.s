@@ -6,11 +6,7 @@ prim_branch:
   jmp next
 
 ; 0branch ( flag -- )
-prim_branch_if_zero:
-  jmp next
-
-; beq ( -- )
-prim_beq:
+prim_bez:
   jmp next
 
 ; def ( -- )

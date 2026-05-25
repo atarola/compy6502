@@ -85,8 +85,7 @@ primative_table:
   .word return
   .word shell_return
   .word prim_branch
-  .word prim_branch_if_zero
-  .word prim_beq
+  .word prim_bez
   .word prim_clc
   .word prim_sec
   .word prim_drop

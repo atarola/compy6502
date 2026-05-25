@@ -33,12 +33,8 @@ branch_record:
   .byte $06, "branch", TOKEN_BRANCH
 
 bez_record:
-  .word beq_record
-  .byte $03, "bez", TOKEN_BRANCH_IF_ZERO
-
-beq_record:
   .word clc_record
-  .byte $03, "beq", TOKEN_BEQ
+  .byte $03, "bez", TOKEN_BRANCH_IF_ZERO
 
 clc_record:
   .word sec_record

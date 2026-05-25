@@ -28,13 +28,19 @@ SHELL_MODE = $41    ; front-end state: interpret / def name / compile
 COMP_RESERVED_TOKEN = $42 ; token reserved for current definition
 COMP_WRITE_PTR_LO = $43 ; staged heap write pointer low byte
 COMP_WRITE_PTR_HI = $44 ; staged heap write pointer high byte
+COMP_BACK_SP = $45  ; compiler backward-target stack pointer
+COMP_FIX_SP = $46   ; compiler forward-fixup stack pointer
 
 ; fixed runtime buffers
 STACK_BASE = $0300
 RETURN_BASE = $0400
 INPUT_BASE = $0500
 SCRATCH_BASE = $0600
+
+; compiler scratch page
 COMP_WORD_BUF = $0700
+COMP_BACK_STACK_TOP = $07DF
+COMP_FIX_STACK_TOP = $07FF
 
 ; token IDs
 ; when adding make sure you update program.inc
@@ -45,33 +51,32 @@ TOKEN_RETURN = $03
 TOKEN_SHELL_RETURN = $04
 TOKEN_BRANCH = $05
 TOKEN_BRANCH_IF_ZERO = $06
-TOKEN_BEQ = $07
-TOKEN_CLC = $08
-TOKEN_SEC = $09
-TOKEN_DROP = $0A
-TOKEN_DUP = $0B
-TOKEN_SWAP = $0C
-TOKEN_OVER = $0D
-TOKEN_ROT = $0E
-TOKEN_R_FROM = $0F
-TOKEN_R_TO = $10
-TOKEN_EQL = $11
-TOKEN_EQZ = $12
-TOKEN_ADC = $13
-TOKEN_SBC = $14
-TOKEN_AND = $15
-TOKEN_OR = $16
-TOKEN_EOR = $17
-TOKEN_NAND = $18
-TOKEN_SUB = $19
-TOKEN_NOOP = $1A
-TOKEN_LOAD_WORD = $1B
-TOKEN_STORE_WORD = $1C
-TOKEN_LITERAL = $1D
-TOKEN_ADD = $1E
-TOKEN_PRINT_HEX = $1F
-TOKEN_DEF = $20
-TOKEN_ENDDEF = $21
+TOKEN_CLC = $07
+TOKEN_SEC = $08
+TOKEN_DROP = $09
+TOKEN_DUP = $0A
+TOKEN_SWAP = $0B
+TOKEN_OVER = $0C
+TOKEN_ROT = $0D
+TOKEN_R_FROM = $0E
+TOKEN_R_TO = $0F
+TOKEN_EQL = $10
+TOKEN_EQZ = $11
+TOKEN_ADC = $12
+TOKEN_SBC = $13
+TOKEN_AND = $14
+TOKEN_OR = $15
+TOKEN_EOR = $16
+TOKEN_NAND = $17
+TOKEN_SUB = $18
+TOKEN_NOOP = $19
+TOKEN_LOAD_WORD = $1A
+TOKEN_STORE_WORD = $1B
+TOKEN_LITERAL = $1C
+TOKEN_ADD = $1D
+TOKEN_PRINT_HEX = $1E
+TOKEN_DEF = $1F
+TOKEN_ENDDEF = $20
 
 ; shell state
 STATE_INTERPRET = $00
@@ -199,6 +204,70 @@ STATE_PAYLOAD_CAPTURE = $02
   ldy RP
   ldx RETURN_BASE,y
   inc RP
+.endmacro
+
+; reset the compiler backward-target stack pointer
+.macro INIT_COMP_BACK_STACK
+  lda #<(COMP_BACK_STACK_TOP + 1)
+  sta COMP_BACK_SP
+.endmacro
+
+; push A(low)/X(high) onto the compiler backward-target stack
+.macro PUSH_COMP_BACK_AX
+  sta TEMP_LO
+
+  dec COMP_BACK_SP
+  ldy COMP_BACK_SP
+  txa
+  sta COMP_WORD_BUF,y
+
+  dec COMP_BACK_SP
+  ldy COMP_BACK_SP
+  lda TEMP_LO
+  sta COMP_WORD_BUF,y
+.endmacro
+
+; pop the top compiler backward-target cell into A(low)/X(high)
+.macro POP_COMP_BACK_AX
+  ldy COMP_BACK_SP
+  lda COMP_WORD_BUF,y
+  inc COMP_BACK_SP
+
+  ldy COMP_BACK_SP
+  ldx COMP_WORD_BUF,y
+  inc COMP_BACK_SP
+.endmacro
+
+; reset the compiler forward-fixup stack pointer
+.macro INIT_COMP_FIX_STACK
+  lda #<(COMP_FIX_STACK_TOP + 1)
+  sta COMP_FIX_SP
+.endmacro
+
+; push A(low)/X(high) onto the compiler forward-fixup stack
+.macro PUSH_COMP_FIX_AX
+  sta TEMP_LO
+
+  dec COMP_FIX_SP
+  ldy COMP_FIX_SP
+  txa
+  sta COMP_WORD_BUF,y
+
+  dec COMP_FIX_SP
+  ldy COMP_FIX_SP
+  lda TEMP_LO
+  sta COMP_WORD_BUF,y
+.endmacro
+
+; pop the top compiler forward-fixup cell into A(low)/X(high)
+.macro POP_COMP_FIX_AX
+  ldy COMP_FIX_SP
+  lda COMP_WORD_BUF,y
+  inc COMP_FIX_SP
+
+  ldy COMP_FIX_SP
+  ldx COMP_WORD_BUF,y
+  inc COMP_FIX_SP
 .endmacro
 
 .endif
