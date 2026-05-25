@@ -6,85 +6,58 @@ shell:
   lda #$0D
   jsr ACIA_PUTC
 
+  lda #<INPUT_BASE
+  sta K_PTR_LO
+
+  lda #>INPUT_BASE
+  sta K_PTR_HI
+
   lda #'>'
-  jsr ACIA_PUTC
-
-  lda #' '
-  jsr ACIA_PUTC
-
-  ldx #$00
-
-; echo input into INPUT_BASE until carriage return
-@load_char:
-  jsr ACIA_GETC
-  cmp #$0D
-  beq @load_end
-
-  cmp #$08
-  beq @backspace
-
-  cmp #$7F
-  beq @backspace
-
-  pha
-  jsr ACIA_PUTC
-  pla
-
-  sta INPUT_BASE,x
-  inx
-  jmp @load_char
-
-@backspace:
-  cpx #$00
-  beq @load_char
-
-  dex
-
-  lda #$08
-  jsr ACIA_PUTC
-  lda #' '
-  jsr ACIA_PUTC
-  lda #$08
-  jsr ACIA_PUTC
-  jmp @load_char
-
-; terminate the input line and reset per-line state
-@load_end:
-  lda #$0D
-  jsr ACIA_PUTC
-  lda #$0A
-  jsr ACIA_PUTC
+  jsr LINE_EDIT
 
   lda #$00
-  sta INPUT_BASE,x
   sta SCRATCH_IDX
-  ldx #$00
+
+  ldx #$01
 
 ; skip spaces and find the start of the next word
 @find_word_start:
+  lda INPUT_BASE
+  sta TEMP_HI
+
+  cpx TEMP_HI
+  beq @check_start
+  bcc @check_start
+  jmp @execute_line
+
+@check_start:
   lda INPUT_BASE,x
-  beq @execute_line
   cmp #' '
   bne @word_start
   inx
   jmp @find_word_start
 
-; record the word start and scan to its end
 @word_start:
   stx WORD_LO
   lda #>INPUT_BASE
   sta WORD_HI
+  ldy #$00
 
-  ldy #$01
-
-; advance until space or end of line
 @find_word_end:
-  inx
+  lda INPUT_BASE
+  sta TEMP_HI
+
+  cpx TEMP_HI
+  beq @check_end
+  bcc @check_end
+  jmp @word_end_line
+
+@check_end:
   lda INPUT_BASE,x
   cmp #' '
   beq @word_end_space
-  cmp #$00
-  beq @word_end_line
+
+  inx
   iny
   jmp @find_word_end
 

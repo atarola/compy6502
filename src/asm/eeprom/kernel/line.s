@@ -45,6 +45,5 @@ line_edit:
   jsr ACIA_PUTC
   jmp @load_char
 
-; terminate the input line and reset per-line state
 @load_end:
   rts

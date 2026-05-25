@@ -303,6 +303,12 @@ prim_end:
 
 ; . ( -- )
 prim_print_hex:
+  lda #$0D
+  jsr ACIA_PUTC
+
+  lda #$0A
+  jsr ACIA_PUTC
+
   ldx SP
 
   lda STACK_BASE + 1,x ; high byte
