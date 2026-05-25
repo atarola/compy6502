@@ -110,6 +110,14 @@ primative_table:
   .word prim_literal
   .word prim_add
   .word prim_print_hex
+  .word prim_begin
+  .word prim_again
+  .word prim_until
+  .word prim_if
+  .word prim_then
+  .word prim_while
+  .word prim_else
+  .word prim_repeat
   .word prim_def
   .word prim_enddef
 

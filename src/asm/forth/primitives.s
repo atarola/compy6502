@@ -3,16 +3,74 @@
 
 ; branch ( -- )
 prim_branch:
+  FETCH_IP
+  SET_IP
   jmp next
 
 ; 0branch ( flag -- )
 prim_bez:
+  POP_AX
+  
+  cmp #$00
+  bne @skip
+  txa
+  cmp #$00
+  bne @skip
+
+  FETCH_IP
+  SET_IP
   jmp next
 
+@skip:
+  INC_IP
+  jmp next
+
+; compile-only placeholder: begin is handled by the shell compiler
+; begin ( -- )
+prim_begin:
+  jmp next
+
+; compile-only placeholder: again is handled by the shell compiler
+; again ( -- )
+prim_again:
+  jmp next
+
+; compile-only placeholder: until is handled by the shell compiler
+; until ( flag -- )
+prim_until:
+  jmp next
+
+; compile-only placeholder: if is handled by the shell compiler
+; if ( flag -- )
+prim_if:
+  jmp next
+
+; compile-only placeholder: then is handled by the shell compiler
+; then ( -- )
+prim_then:
+  jmp next
+
+; compile-only placeholder: while is handled by the shell compiler
+; while ( flag -- )
+prim_while:
+  jmp next
+
+; compile-only placeholder: else is handled by the shell compiler
+; else ( -- )
+prim_else:
+  jmp next
+
+; compile-only placeholder: repeat is handled by the shell compiler
+; repeat ( -- )
+prim_repeat:
+  jmp next
+
+; compile-only placeholder: def is handled by the shell compiler
 ; def ( -- )
 prim_def:
   jmp next
 
+; compile-only placeholder: enddef is handled by the shell compiler
 ; enddef ( -- )
 prim_enddef:
   jmp next

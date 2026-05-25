@@ -33,8 +33,40 @@ branch_record:
   .byte $06, "branch", TOKEN_BRANCH
 
 bez_record:
+  .word begin_record
+  .byte $03, "bez", TOKEN_BEZ
+
+begin_record:
+  .word again_record
+  .byte $05, "begin", TOKEN_BEGIN
+
+again_record:
+  .word until_record
+  .byte $05, "again", TOKEN_AGAIN
+
+until_record:
+  .word if_record
+  .byte $05, "until", TOKEN_UNTIL
+
+if_record:
+  .word then_record
+  .byte $02, "if", TOKEN_IF
+
+then_record:
+  .word while_record
+  .byte $04, "then", TOKEN_THEN
+
+while_record:
+  .word else_record
+  .byte $05, "while", TOKEN_WHILE
+
+else_record:
+  .word repeat_record
+  .byte $04, "else", TOKEN_ELSE
+
+repeat_record:
   .word clc_record
-  .byte $03, "bez", TOKEN_BRANCH_IF_ZERO
+  .byte $06, "repeat", TOKEN_REPEAT
 
 clc_record:
   .word sec_record

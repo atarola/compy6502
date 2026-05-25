@@ -50,7 +50,7 @@ TOKEN_CALL = $02
 TOKEN_RETURN = $03
 TOKEN_SHELL_RETURN = $04
 TOKEN_BRANCH = $05
-TOKEN_BRANCH_IF_ZERO = $06
+TOKEN_BEZ = $06
 TOKEN_CLC = $07
 TOKEN_SEC = $08
 TOKEN_DROP = $09
@@ -75,8 +75,16 @@ TOKEN_STORE_WORD = $1B
 TOKEN_LITERAL = $1C
 TOKEN_ADD = $1D
 TOKEN_PRINT_HEX = $1E
-TOKEN_DEF = $1F
-TOKEN_ENDDEF = $20
+TOKEN_BEGIN = $1F
+TOKEN_AGAIN = $20
+TOKEN_UNTIL = $21
+TOKEN_IF = $22
+TOKEN_THEN = $23
+TOKEN_WHILE = $24
+TOKEN_ELSE = $25
+TOKEN_REPEAT = $26
+TOKEN_DEF = $27
+TOKEN_ENDDEF = $28
 
 ; shell state
 STATE_INTERPRET = $00
@@ -112,6 +120,20 @@ STATE_PAYLOAD_CAPTURE = $02
   ldy #0
   lda (IP_LO),y
   INC_IP
+.endmacro
+
+; apply signed 8-bit branch offset in A to IP
+.macro SET_IP
+  cmp #$80
+  bcc :+
+  dec IP_HI
+:
+  clc
+  adc IP_LO
+  sta IP_LO
+  bcc :+
+  inc IP_HI
+:
 .endmacro
 
 ; read stack cell offset from SP: 0 = SP cell, 1 = one cell below, ...

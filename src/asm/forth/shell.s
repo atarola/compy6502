@@ -204,6 +204,15 @@ resolve_compile_word:
   cmp #TOKEN_ENDDEF
   beq @handle_enddef
 
+  cmp #TOKEN_BEGIN
+  beq @handle_begin
+
+  cmp #TOKEN_AGAIN
+  beq @handle_again
+
+  cmp #TOKEN_UNTIL
+  beq @handle_until
+
   ldy #$00
   sta (COMP_WRITE_PTR_LO),y
   INC_COMP_WRITE_PTR
@@ -219,6 +228,36 @@ resolve_compile_word:
   INC_COMP_WRITE_PTR
 
   lda TEMP_LO
+  sta (COMP_WRITE_PTR_LO),y
+  INC_COMP_WRITE_PTR
+
+  rts
+
+@handle_begin:
+  lda COMP_WRITE_PTR_LO
+  ldx COMP_WRITE_PTR_HI
+  PUSH_COMP_BACK_AX
+  rts
+
+@handle_again:
+  lda #TOKEN_BRANCH
+  jmp @handle_back_ptr
+
+@handle_until:
+  lda #TOKEN_BEZ
+  jmp @handle_back_ptr
+
+@handle_back_ptr:
+  ldy #$00
+  sta (COMP_WRITE_PTR_LO),y
+  INC_COMP_WRITE_PTR
+
+  POP_COMP_BACK_AX
+  dea
+  sec
+  sbc COMP_WRITE_PTR_LO
+  
+  ldy #$00
   sta (COMP_WRITE_PTR_LO),y
   INC_COMP_WRITE_PTR
 
@@ -367,8 +406,15 @@ find_name:
   sta HEAP_CURR_LO
 
   cmp #$FF
-  beq @not_found
+  bne :+
 
+  lda HEAP_NEXT_HI
+  cmp #$FF
+  beq @not_found
+  sta HEAP_CURR_HI
+  jmp @next_name
+
+:
   lda HEAP_NEXT_HI
   sta HEAP_CURR_HI
 
