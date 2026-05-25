@@ -7,6 +7,7 @@ FPGA_PACKAGE = "cm81"
 FPGA_FREQ_MHZ = "16"
 ASM_PROGRAM_ROOT = Path("src/asm/programs")
 ASM_PROGRAM_BUILD_ROOT = Path("build/asm/programs")
+FORTH_PROGRAM_BUILD_ROOT = Path("build/asm/forth")
 
 
 def fpga_targets():
@@ -19,7 +20,9 @@ def run(*cmd):
 
 
 def asm_program_sources():
-    return sorted(ASM_PROGRAM_ROOT.glob("**/*.s"))
+    top_level = sorted(ASM_PROGRAM_ROOT.glob("*.s"))
+    nested_main = sorted(ASM_PROGRAM_ROOT.glob("**/main.s"))
+    return top_level + nested_main
 
 
 def asm_program_includes():
@@ -28,12 +31,36 @@ def asm_program_includes():
 
 def asm_program_outputs(source):
     relative = source.relative_to(ASM_PROGRAM_ROOT)
-    output = ASM_PROGRAM_BUILD_ROOT / relative.with_suffix("")
+    if relative.name == "main.s" and relative.parent != Path("."):
+        output = ASM_PROGRAM_BUILD_ROOT / relative.parent
+    else:
+        output = ASM_PROGRAM_BUILD_ROOT / relative.with_suffix("")
     return {
         "object": output.with_suffix(".o"),
         "listing": output.with_suffix(".lst"),
         "srec": output.with_suffix(".srec"),
     }
+
+
+def compile_asm_source(source, outputs):
+    outputs["object"].parent.mkdir(parents=True, exist_ok=True)
+    run(
+        "ca65",
+        "--cpu",
+        "65c02",
+        "--list-bytes",
+        "255",
+        "-I",
+        "./src/asm",
+        "-I",
+        "./src",
+        "-l",
+        outputs["listing"],
+        "-o",
+        outputs["object"],
+        source,
+    )
+    run("python", "src/tools/srec.py", outputs["listing"], "-o", outputs["srec"])
 
 
 def compile_asm_programs():
@@ -43,25 +70,7 @@ def compile_asm_programs():
 
     for source in sources:
         outputs = asm_program_outputs(source)
-        outputs["object"].parent.mkdir(parents=True, exist_ok=True)
-        run(
-            "ca65",
-            "--cpu",
-            "65c02",
-            "--list-bytes",
-            "255",
-            "-I",
-            "./src/asm",
-            "-I",
-            "./src",
-            "-l",
-            outputs["listing"],
-            "-o",
-            outputs["object"],
-            source,
-        )
-        run("python", "src/tools/srec.py", outputs["listing"], "-o", outputs["srec"])
-
+        compile_asm_source(source, outputs)
 
 def fpga_paths(target):
     src_dir = Path("src/fpga") / target
@@ -191,6 +200,13 @@ def task_asm():
     program_sources = asm_program_sources()
     program_includes = asm_program_includes()
     program_outputs = [output for source in program_sources for output in asm_program_outputs(source).values()]
+    forth_outputs = [
+        FORTH_PROGRAM_BUILD_ROOT / "forth.o",
+        FORTH_PROGRAM_BUILD_ROOT / "forth.lst",
+        FORTH_PROGRAM_BUILD_ROOT / "forth.srec",
+    ]
+    forth_parts = sorted(Path("src/asm/forth").glob("*.s"))
+    forth_includes = sorted(Path("src/asm/forth").glob("*.inc"))
 
     yield {
         "name": "build",
@@ -222,4 +238,17 @@ def task_asm():
             *program_sources,
         ],
         "targets": program_outputs,
+    }
+
+    yield {
+        "name": "forth",
+        "actions": ["bash ./src/asm/forth/build.sh"],
+        "file_dep": [
+            "src/asm/forth/build.sh",
+            "src/tools/srec.py",
+            "src/asm/include/compy6502.inc",
+            *forth_parts,
+            *forth_includes,
+        ],
+        "targets": forth_outputs,
     }
