@@ -108,6 +108,60 @@ str_eq:
   sec
   rts
 
+; Copy one Pascal string to another.
+; in:  K_PTR  = destination Pascal string
+;      K_PTR2 = source Pascal string
+; out: none
+; clobbers: A, X, Y, flags
+str_copy:
+  jsr STR_INIT
+
+  ldy #$00
+  lda (K_PTR2),y
+  beq @end
+  sta K_TMP0
+  lda #$01
+  sta K_TMP1
+
+@loop:
+  ldy K_TMP1
+  lda (K_PTR2),y
+  jsr STR_APPEND
+
+  inc K_TMP1
+  dec K_TMP0
+  bne @loop
+
+@end:
+  rts
+
+; Copy a span into a Pascal string.
+; in:  K_PTR  = destination Pascal string
+;      K_PTR2 = source span start
+;      A      = source span length
+; out: none
+; clobbers: A, X, Y, flags
+span_to_str:
+  sta K_TMP0
+  jsr STR_INIT
+
+  lda K_TMP0
+  beq @end
+  lda #$00
+  sta K_TMP1
+
+@loop:
+  ldy K_TMP1
+  lda (K_PTR2),y
+  jsr STR_APPEND
+
+  inc K_TMP1
+  dec K_TMP0
+  bne @loop
+
+@end:
+  rts
+
 ; Convert a byte to two ASCII hex characters.
 ; in:  A = byte
 ; out: A = high ASCII hex character

@@ -98,12 +98,27 @@ STR_POP = JUMP_BASE + (3 * 5)
 ; clobbers: A, X, Y, flags
 STR_EQ = JUMP_BASE + (3 * 6)
 
+; Copy one Pascal string to another.
+; in:  K_PTR  = destination Pascal string
+;      K_PTR2 = source Pascal string
+; out: none
+; clobbers: A, X, Y, flags
+STR_COPY = JUMP_BASE + (3 * 7)
+
+; Copy a span into a Pascal string.
+; in:  K_PTR  = destination Pascal string
+;      K_PTR2 = source span start
+;      A      = source span length
+; out: none
+; clobbers: A, X, Y, flags
+SPAN_TO_STR = JUMP_BASE + (3 * 8)
+
 ; Convert byte to ASCII hex characters.
 ; in:  A = byte
 ; out: A = high ASCII hex character
 ;      X = low ASCII hex character
 ; clobbers: flags
-BYTE_TO_HEX = JUMP_BASE + (3 * 7)
+BYTE_TO_HEX = JUMP_BASE + (3 * 9)
 
 ; Convert ASCII hex character to nibble.
 ; in:  A = ASCII hex character
@@ -111,14 +126,14 @@ BYTE_TO_HEX = JUMP_BASE + (3 * 7)
 ;      carry clear = valid
 ;      carry set = invalid
 ; clobbers: flags
-HEX_TO_NIBBLE = JUMP_BASE + (3 * 8)
+HEX_TO_NIBBLE = JUMP_BASE + (3 * 10)
 
 ; Read and edit one line of input.
 ; in:  A     = prompt character
 ;      K_PTR = Pascal string buffer
 ; out: none
 ; clobbers: A, X, flags
-LINE_EDIT = JUMP_BASE + (3 * 9)
+LINE_EDIT = JUMP_BASE + (3 * 11)
 
 ;
 ; Helper macros

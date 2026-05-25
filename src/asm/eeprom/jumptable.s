@@ -19,6 +19,12 @@ str_pop_trampoline:
 str_eq_trampoline:
   jmp str_eq
 
+str_copy_trampoline:
+  jmp str_copy
+
+span_to_str_trampoline:
+  jmp span_to_str
+
 byte_to_hex_trampoline:
   jmp byte_to_hex
 

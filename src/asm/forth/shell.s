@@ -3,6 +3,11 @@
 
 ; shell prompt and line reader
 shell:
+next_line:
+  ; scratch starts empty for each input line
+  lda #$00
+  sta SCRATCH_IDX
+
   lda #$0A
   jsr ACIA_PUTC
 
@@ -15,12 +20,14 @@ shell:
   lda #>INPUT_BASE
   sta K_PTR_HI
 
+  ; change the line prefix per mode
   lda #'>'
+  ldx SHELL_MODE
+  cpx #STATE_PAYLOAD_CAPTURE
+  bne :+
+  lda #'-'
+:
   jsr LINE_EDIT
-
-  ; scratch starts empty for each input line
-  lda #$00
-  sta SCRATCH_IDX
 
   ; Pascal string text starts at byte 1, with length in byte 0
   ldx #$01
@@ -81,6 +88,11 @@ shell:
 @word_end_line:
   sty WORD_LEN
   jsr resolve_word
+
+  lda SHELL_MODE
+  cmp #STATE_PAYLOAD_CAPTURE
+  beq next_line
+
   jmp @execute_line
 
 ; append shell return and run the scratch buffer
@@ -150,21 +162,30 @@ resolve_interpret_word:
 
 ; the word after `def` becomes the name and locks in the heap write start
 resolve_defname_word:
-  lda WORD_HI
-  sta COMP_WORD_HI
-
-  lda WORD_LO
-  sta COMP_WORD_LO
-
-  lda WORD_LEN
-  sta COMP_WORD_LEN
-
+  ; set the high-water mark of the heap for the next writing block
   lda HEAP_FREE_LO
   sta COMP_WRITE_PTR_LO
 
   lda HEAP_FREE_HI
   sta COMP_WRITE_PTR_HI
 
+  ; setup SPAN_TO_STR
+  lda #<COMP_WORD_BUF
+  sta K_PTR_LO
+
+  lda #>COMP_WORD_BUF
+  sta K_PTR_HI
+
+  lda WORD_LO
+  sta K_PTR2_LO
+
+  lda WORD_HI
+  sta K_PTR2_HI
+
+  lda WORD_LEN
+  jsr SPAN_TO_STR
+
+  ; next state
   lda #STATE_PAYLOAD_CAPTURE
   sta SHELL_MODE
   rts
@@ -239,24 +260,25 @@ resolve_compile_word:
   sta (COMP_WRITE_PTR_LO),y 
   INC_COMP_WRITE_PTR
 
-  ; write the length then name, incrementing the write pointer
+  ; copy the name into the heap
+  lda COMP_WRITE_PTR_LO
+  sta K_PTR_LO
+  lda COMP_WRITE_PTR_HI
+  sta K_PTR_HI
+
+  lda #<COMP_WORD_BUF
+  sta K_PTR2_LO
+  lda #>COMP_WORD_BUF
+  sta K_PTR2_HI 
+  
+  jsr STR_COPY
+
+  ; increment the write pointer by the size of the string + 1
   ldy #$00
-  lda COMP_WORD_LEN
+  lda (COMP_WRITE_PTR_LO),y
   sta TEMP_LO
-  sta (COMP_WRITE_PTR_LO),y
-  INC_COMP_WRITE_PTR
+  inc TEMP_LO
 
-  ldx COMP_WORD_LEN
-  beq @after_copy
-
-@copy_loop:
-  lda (COMP_WORD_LO),y
-  sta (COMP_WRITE_PTR_LO),y
-  iny
-  dex
-  bne @copy_loop
-
-@after_copy:
   lda COMP_WRITE_PTR_LO
   clc
   adc TEMP_LO
@@ -266,7 +288,7 @@ resolve_compile_word:
 :
 
   ; add the token at the end of the node
-  ldy #00
+  ldy #$00
   lda COMP_RESERVED_TOKEN
   sta (COMP_WRITE_PTR_LO),y
   INC_COMP_WRITE_PTR
@@ -402,6 +424,9 @@ parse_hex_byte:
 shell_error:
   lda #'!'
   jsr ACIA_PUTC
+
+  lda #STATE_INTERPRET
+  sta SHELL_MODE
 
   lda #$0D
   jsr ACIA_PUTC

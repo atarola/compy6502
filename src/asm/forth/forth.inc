@@ -7,36 +7,34 @@
 FORTH_INC = 1
 
 ; zero-page workspace
-TOKEN = $20         ; current token byte
-TEMP_LO = $21       ; scratch byte / low temp
-TEMP_HI = $22       ; scratch byte / high temp
-IP_LO = $23         ; interpreter IP low byte
-IP_HI = $24         ; interpreter IP high byte
-TARGET_LO = $25     ; dispatch / indirect address low byte
-TARGET_HI = $26     ; dispatch / indirect address high byte
-SP = $27            ; data stack pointer
-RP = $28            ; return stack pointer
-WORD_LO = $29       ; current input word pointer low byte
-WORD_HI = $2A       ; current input word pointer high byte
-WORD_LEN = $2B      ; current input word length
-HEAP_CURR_LO = $2C  ; current heap record low byte
-HEAP_CURR_HI = $2D  ; current heap record high byte
-HEAP_NEXT_LO = $2E  ; next heap record low byte
-HEAP_NEXT_HI = $2F  ; next heap record high byte
-SCRATCH_IDX = $30   ; scratch bytecode write index
-SHELL_MODE = $31    ; front-end state: interpret / def name / compile
-COMP_RESERVED_TOKEN = $32 ; token reserved for current definition
-COMP_WORD_LO = $33  ; current definition name pointer low byte
-COMP_WORD_HI = $34  ; current definition name pointer high byte
-COMP_WORD_LEN = $35 ; current definition name length
-COMP_WRITE_PTR_LO = $36 ; staged heap write pointer low byte
-COMP_WRITE_PTR_HI = $37 ; staged heap write pointer high byte
+TOKEN = $30         ; current token byte
+TEMP_LO = $31       ; scratch byte / low temp
+TEMP_HI = $32       ; scratch byte / high temp
+IP_LO = $33         ; interpreter IP low byte
+IP_HI = $34         ; interpreter IP high byte
+TARGET_LO = $35     ; dispatch / indirect address low byte
+TARGET_HI = $36     ; dispatch / indirect address high byte
+SP = $37            ; data stack pointer
+RP = $38            ; return stack pointer
+WORD_LO = $39       ; current input word pointer low byte
+WORD_HI = $3A       ; current input word pointer high byte
+WORD_LEN = $3B      ; current input word length
+HEAP_CURR_LO = $3C  ; current heap record low byte
+HEAP_CURR_HI = $3D  ; current heap record high byte
+HEAP_NEXT_LO = $3E  ; next heap record low byte
+HEAP_NEXT_HI = $3F  ; next heap record high byte
+SCRATCH_IDX = $40   ; scratch bytecode write index
+SHELL_MODE = $41    ; front-end state: interpret / def name / compile
+COMP_RESERVED_TOKEN = $42 ; token reserved for current definition
+COMP_WRITE_PTR_LO = $43 ; staged heap write pointer low byte
+COMP_WRITE_PTR_HI = $44 ; staged heap write pointer high byte
 
 ; fixed runtime buffers
 STACK_BASE = $0300
 RETURN_BASE = $0400
 INPUT_BASE = $0500
 SCRATCH_BASE = $0600
+COMP_WORD_BUF = $0700
 
 ; token IDs
 ; when adding make sure you update program.inc
