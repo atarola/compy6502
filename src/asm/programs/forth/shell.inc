@@ -15,13 +15,16 @@ shell:
   lda #'>'
   jsr LINE_EDIT
 
+  ; scratch starts empty for each input line
   lda #$00
   sta SCRATCH_IDX
 
+  ; Pascal string text starts at byte 1, with length in byte 0
   ldx #$01
 
 ; skip spaces and find the start of the next word
 @find_word_start:
+  ; refresh the current line length because TEMP_HI is scratch elsewhere
   lda INPUT_BASE
   sta TEMP_HI
 
@@ -37,6 +40,7 @@ shell:
   inx
   jmp @find_word_start
 
+; record the start index of this word, then measure until space or EOL
 @word_start:
   stx WORD_LO
   lda #>INPUT_BASE
@@ -44,6 +48,7 @@ shell:
   ldy #$00
 
 @find_word_end:
+  ; INPUT_BASE[0] is the last valid character index limit
   lda INPUT_BASE
   sta TEMP_HI
 
@@ -83,6 +88,7 @@ shell:
   inc SCRATCH_IDX
   jmp execute
 
+; dispatch the current word according to the shell front-end state
 resolve_word:
   lda SHELL_MODE
   cmp #STATE_INTERPRET
@@ -131,6 +137,7 @@ resolve_interpret_word:
   rts
 
 @handle_def:
+  ; reserve the next token now so the definition can refer to itself later
   lda DICT_NEXT_TOKEN
   sta COMP_RESERVED_TOKEN
   inc DICT_NEXT_TOKEN
@@ -138,6 +145,7 @@ resolve_interpret_word:
   sta SHELL_MODE
   rts 
 
+; the word after `def` becomes the name and locks in the heap write start
 resolve_defname_word:
   lda WORD_HI
   sta COMP_WORD_HI
@@ -158,6 +166,7 @@ resolve_defname_word:
   sta SHELL_MODE
   rts
 
+; compile mode emits directly into heap space instead of scratch space
 resolve_compile_word:
   jsr find_name
   bcc @handle_name
@@ -191,6 +200,7 @@ resolve_compile_word:
 
   rts
 
+; finish the payload, append the dictionary node, and publish the new word
 @handle_enddef:
   ldy #$00
 
@@ -288,7 +298,7 @@ find_name:
   lda #>heap
   sta HEAP_CURR_HI
 
-; inspect the next table entry
+; linked records are: next ptr, name length, name bytes, token byte
 @next_name:
   ldy #$00
 
@@ -344,7 +354,8 @@ find_name:
   sec
   rts
 
-; parse a 1-2 digit hex literal into a byte
+; parse a 1-2 digit hex literal into a byte for immediate execution
+; or compilation as TOKEN_LITERAL payload
 parse_hex_byte:
   lda WORD_LEN
   beq @bad
