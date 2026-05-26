@@ -60,9 +60,6 @@ prim_false:
   PUSH_FALSE
   jmp next
 
-; exit ( -- )
-; runtime alias for return from the current word
-
 ; compile-only placeholder: while is handled by the shell compiler
 ; while ( flag -- )
 prim_while:
@@ -198,24 +195,94 @@ prim_eqz:
   PUSH_FALSE
   jmp next
 
-; compile-only placeholder for future 16-bit compare word
 ; lt ( a b -- flag )
 prim_lt:
+  POP_AX
+  stx TEMP_HI
+  sta TEMP_LO
+
+  POP_AX
+  cpx TEMP_HI
+  bcc @true
+  bne @false
+
+  cmp TEMP_LO
+  bcc @true
+
+@false:
+  PUSH_FALSE
   jmp next
 
-; compile-only placeholder for future 16-bit compare word
+@true:
+  PUSH_TRUE
+  jmp next
+
 ; lte ( a b -- flag )
 prim_lte:
+  POP_AX
+  stx TEMP_HI
+  sta TEMP_LO
+
+  POP_AX
+  cpx TEMP_HI
+  bcc @true
+  bne @false
+
+  cmp TEMP_LO
+  bcc @true
+  beq @true
+
+@false:
+  PUSH_FALSE
   jmp next
 
-; compile-only placeholder for future 16-bit compare word
+@true:
+  PUSH_TRUE
+  jmp next
+
 ; gt ( a b -- flag )
 prim_gt:
+  POP_AX
+  stx TEMP_HI
+  sta TEMP_LO
+
+  POP_AX
+  cpx TEMP_HI
+  bcc @false
+  bne @true
+
+  cmp TEMP_LO
+  bcc @false
+  beq @false
+
+@false:
+  PUSH_FALSE
   jmp next
 
-; compile-only placeholder for future 16-bit compare word
+@true:
+  PUSH_TRUE
+  jmp next
+
 ; gte ( a b -- flag )
 prim_gte:
+  POP_AX
+  stx TEMP_HI
+  sta TEMP_LO
+
+  POP_AX
+  cpx TEMP_HI
+  bcc @false
+  bne @true
+
+  cmp TEMP_LO
+  bcc @false
+
+@true:
+  PUSH_TRUE
+  jmp next
+
+@false:
+  PUSH_FALSE
   jmp next
 
 ; + ( a b -- a+b )
