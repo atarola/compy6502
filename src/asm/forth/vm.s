@@ -97,6 +97,10 @@ primative_table:
   .word prim_r_to
   .word prim_eql
   .word prim_eqz
+  .word prim_lt
+  .word prim_lte
+  .word prim_gt
+  .word prim_gte
   .word prim_adc
   .word prim_sbc
   .word prim_and

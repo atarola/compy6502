@@ -109,8 +109,24 @@ eql_record:
   .byte $03, "eql", TOKEN_EQL
 
 eqz_record:
-  .word adc_record
+  .word lt_record
   .byte $03, "eqz", TOKEN_EQZ
+
+lt_record:
+  .word lte_record
+  .byte $02, "lt", TOKEN_LT
+
+lte_record:
+  .word gt_record
+  .byte $03, "lte", TOKEN_LTE
+
+gt_record:
+  .word gte_record
+  .byte $02, "gt", TOKEN_GT
+
+gte_record:
+  .word adc_record
+  .byte $03, "gte", TOKEN_GTE
 
 adc_record:
   .word sbc_record

@@ -198,6 +198,26 @@ prim_eqz:
   PUSH_FALSE
   jmp next
 
+; compile-only placeholder for future 16-bit compare word
+; lt ( a b -- flag )
+prim_lt:
+  jmp next
+
+; compile-only placeholder for future 16-bit compare word
+; lte ( a b -- flag )
+prim_lte:
+  jmp next
+
+; compile-only placeholder for future 16-bit compare word
+; gt ( a b -- flag )
+prim_gt:
+  jmp next
+
+; compile-only placeholder for future 16-bit compare word
+; gte ( a b -- flag )
+prim_gte:
+  jmp next
+
 ; + ( a b -- a+b )
 prim_add:
   clc
