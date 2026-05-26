@@ -158,13 +158,18 @@ resolve_interpret_word:
   rts
 
 @handle_def:
-  ; reserve the next token now so the definition can refer to itself later
   lda DICT_NEXT_TOKEN
+  beq @too_many_words
+
+  ; reserve the next token now so the definition can refer to itself later
   sta COMP_RESERVED_TOKEN
   inc DICT_NEXT_TOKEN
   lda #STATE_WORD_CAPTURE
   sta SHELL_MODE
   rts 
+
+@too_many_words:
+  jmp shell_error
 
 ; the word after `def` becomes the name and locks in the heap write start
 resolve_defname_word:

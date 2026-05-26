@@ -3,7 +3,11 @@
 - add the ability to do int and hex numbers
 - add print_hex, print_char, and print_int
 - allow for character literals
+- think about testing
 
+    def double 
+      dup add
+    enddef
 
     def next_term
       dup
@@ -25,11 +29,11 @@
       until
     enddef
 
-    def if_ret
+    def ifr      
       if 
         5555 print
         return 
-      then
+      endif
       AAAA print
     enddef
 

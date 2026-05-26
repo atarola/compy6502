@@ -14,7 +14,7 @@ HEAP_TAIL_LO: .byte <false_record  ; name list tail low byte
 HEAP_TAIL_HI: .byte >false_record  ; name list tail high byte
 
 body_table:
-.repeat 128
+.repeat 256
   .word invalid
 .endrepeat
 

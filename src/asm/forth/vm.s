@@ -130,6 +130,6 @@ primative_table:
 
 primative_table_used = (* - primative_table) / 2
 
-.repeat 128 - primative_table_used
+.repeat 256 - primative_table_used
   .word call
 .endrepeat
