@@ -242,6 +242,16 @@ resolve_compile_word:
   jmp @handle_endif
 :
 
+  cmp #TOKEN_WHILE
+  bne :+
+  jmp @handle_while
+:
+
+  cmp #TOKEN_REPEAT
+  bne :+
+  jmp @handle_repeat
+:
+
   ldy #$00
   sta (COMP_WRITE_PTR_LO),y
   INC_COMP_WRITE_PTR
@@ -298,6 +308,7 @@ resolve_compile_word:
   rts
 
 @handle_if:
+@handle_while:
   ldy #$00
   lda #TOKEN_BEZ
   sta (COMP_WRITE_PTR_LO),y
@@ -349,6 +360,12 @@ resolve_compile_word:
   sbc TEMP_LO
   sta (TEMP_LO),y
 
+  rts
+
+@handle_repeat:
+  lda #TOKEN_BRANCH
+  jsr @handle_back_ptr
+  jsr @rewrite_backref
   rts
 
 ; finish the payload, append the dictionary node, and publish the new word

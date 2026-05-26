@@ -33,10 +33,20 @@
       AAAA print
     enddef
 
-    def if_else
+    def ife
       if
-        1 print
+        5555 print
       else
-        0 print
+        AAAA print
       endif
+    enddef
+
+    def countup
+      0
+      begin
+        dup 5 eql eqz
+      while
+        print
+        dup 1 add
+      repeat
     enddef
