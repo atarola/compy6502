@@ -227,6 +227,21 @@ resolve_compile_word:
   jmp @handle_until
 :
 
+  cmp #TOKEN_IF
+  bne :+
+  jmp @handle_if
+:
+
+  cmp #TOKEN_ELSE
+  bne :+
+  jmp @handle_else
+:
+
+  cmp #TOKEN_ENDIF
+  bne :+
+  jmp @handle_endif
+:
+
   ldy #$00
   sta (COMP_WRITE_PTR_LO),y
   INC_COMP_WRITE_PTR
@@ -279,6 +294,60 @@ resolve_compile_word:
   ldy #$00
   sta (COMP_WRITE_PTR_LO),y
   INC_COMP_WRITE_PTR
+
+  rts
+
+@handle_if:
+  ldy #$00
+  lda #TOKEN_BEZ
+  sta (COMP_WRITE_PTR_LO),y
+  INC_COMP_WRITE_PTR
+
+  lda #$00
+  sta (COMP_WRITE_PTR_LO),y
+
+  lda COMP_WRITE_PTR_LO
+  ldx COMP_WRITE_PTR_HI
+  PUSH_COMP_FIX_AX
+  INC_COMP_WRITE_PTR
+
+  rts 
+
+@handle_else:
+  ldy #$00
+  lda #TOKEN_BRANCH
+  sta (COMP_WRITE_PTR_LO),y
+  INC_COMP_WRITE_PTR
+
+  ldy #$00
+  lda #$00
+  sta (COMP_WRITE_PTR_LO),y
+
+  lda COMP_WRITE_PTR_LO
+  ldx COMP_WRITE_PTR_HI
+  PUSH_RETURN_AX
+    
+  INC_COMP_WRITE_PTR
+
+  jsr @rewrite_backref
+
+  POP_RETURN_AX
+  PUSH_COMP_FIX_AX
+  
+  rts 
+
+@handle_endif:
+@rewrite_backref:
+  POP_COMP_FIX_AX
+  sta TEMP_LO
+  stx TEMP_HI
+  
+  ldy #$00
+  lda COMP_WRITE_PTR_LO
+  dea 
+  sec 
+  sbc TEMP_LO
+  sta (TEMP_LO),y
 
   rts
 

@@ -45,10 +45,23 @@ prim_until:
 prim_if:
   jmp next
 
-; compile-only placeholder: then is handled by the shell compiler
-; then ( -- )
-prim_then:
+; compile-only placeholder: endif is handled by the shell compiler
+; endif ( -- )
+prim_endif:
   jmp next
+
+; true ( -- flag )
+prim_true:
+  PUSH_TRUE
+  jmp next
+
+; false ( -- flag )
+prim_false:
+  PUSH_FALSE
+  jmp next
+
+; exit ( -- )
+; runtime alias for return from the current word
 
 ; compile-only placeholder: while is handled by the shell compiler
 ; while ( flag -- )

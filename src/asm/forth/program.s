@@ -10,8 +10,8 @@ DICT_NEXT_TOKEN: .byte TOKEN_ENDDEF + 1
 HEAP_FREE_LO: .byte <heap_seed_end ; empty space address low byte
 HEAP_FREE_HI: .byte >heap_seed_end ; empty space address high byte
 
-HEAP_TAIL_LO: .byte <print_record  ; name list tail low byte
-HEAP_TAIL_HI: .byte >print_record  ; name list tail high byte
+HEAP_TAIL_LO: .byte <false_record  ; name list tail low byte
+HEAP_TAIL_HI: .byte >false_record  ; name list tail high byte
 
 body_table:
 .repeat 128
@@ -49,12 +49,12 @@ until_record:
   .byte $05, "until", TOKEN_UNTIL
 
 if_record:
-  .word then_record
+  .word endif_record
   .byte $02, "if", TOKEN_IF
 
-then_record:
+endif_record:
   .word while_record
-  .byte $04, "then", TOKEN_THEN
+  .byte $05, "endif", TOKEN_ENDIF
 
 while_record:
   .word else_record
@@ -161,8 +161,20 @@ add_record:
   .byte $03, "add", TOKEN_ADD
 
 print_record:
-  .word $FFFF
+  .word return_word_record
   .byte $05, "print", TOKEN_PRINT_HEX
+
+return_word_record:
+  .word true_record
+  .byte $06, "return", TOKEN_RETURN_WORD
+
+true_record:
+  .word false_record
+  .byte $04, "true", TOKEN_TRUE
+
+false_record:
+  .word $FFFF
+  .byte $05, "false", TOKEN_FALSE
 
 ; marker for the end of the seeded heap
 heap_seed_end:
