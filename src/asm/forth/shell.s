@@ -122,7 +122,7 @@ resolve_interpret_word:
   jsr find_name
   bcc @handle_name
 
-  jsr parse_hex_byte
+  jsr parse_hex_word
   bcc @handle_literal
 
   jmp shell_error
@@ -136,9 +136,10 @@ resolve_interpret_word:
   inc SCRATCH_IDX
   rts
 
-; append TOKEN_LITERAL plus the parsed byte value
+; append TOKEN_LITERAL plus the parsed word value
 @handle_literal:
   sta TEMP_LO
+  stx TEMP_HI
 
   ldy SCRATCH_IDX
   lda #TOKEN_LITERAL
@@ -147,6 +148,11 @@ resolve_interpret_word:
 
   ldy SCRATCH_IDX
   lda TEMP_LO
+  sta SCRATCH_BASE,y
+  inc SCRATCH_IDX
+
+  ldy SCRATCH_IDX
+  lda TEMP_HI
   sta SCRATCH_BASE,y
   inc SCRATCH_IDX
   rts
@@ -195,32 +201,41 @@ resolve_compile_word:
   jsr find_name
   bcc @handle_name
 
-  jsr parse_hex_byte
+  jsr parse_hex_word
   bcc @handle_literal
 
   jmp shell_error
 
 @handle_name:
   cmp #TOKEN_ENDDEF
-  beq @handle_enddef
+  bne :+
+  jmp @handle_enddef
+:
 
   cmp #TOKEN_BEGIN
-  beq @handle_begin
+  bne :+
+  jmp @handle_begin
+:
 
   cmp #TOKEN_AGAIN
-  beq @handle_again
+  bne :+
+  jmp @handle_again
+:
 
   cmp #TOKEN_UNTIL
-  beq @handle_until
+  bne :+
+  jmp @handle_until
+:
 
   ldy #$00
   sta (COMP_WRITE_PTR_LO),y
   INC_COMP_WRITE_PTR
   rts
 
-; append TOKEN_LITERAL plus the parsed byte value
+; append TOKEN_LITERAL plus the parsed word value
 @handle_literal:
   sta TEMP_LO
+  stx TEMP_HI
   ldy #$00
 
   lda #TOKEN_LITERAL
@@ -228,6 +243,10 @@ resolve_compile_word:
   INC_COMP_WRITE_PTR
 
   lda TEMP_LO
+  sta (COMP_WRITE_PTR_LO),y
+  INC_COMP_WRITE_PTR
+
+  lda TEMP_HI
   sta (COMP_WRITE_PTR_LO),y
   INC_COMP_WRITE_PTR
 
@@ -425,32 +444,41 @@ find_name:
   sec
   rts
 
-; parse a 1-2 digit hex literal into a byte for immediate execution
+; parse a 1-4 digit hex literal into a word for immediate execution
 ; or compilation as TOKEN_LITERAL payload
-parse_hex_byte:
+; out: A = low byte, X = high byte
+parse_hex_word:
   lda WORD_LEN
   beq @bad
-  cmp #$03
+  cmp #$05
   bcs @bad
 
   lda #$00
   sta TEMP_LO
+  sta TEMP_HI
 
   ldy #$00
 
-; fold one hex digit into the accumulator
+; fold one hex digit from HEX_TO_NIBBLE into the 16-bit accumulator
 @parse_loop:
   lda (WORD_LO),y
   jsr HEX_TO_NIBBLE
   bcs @bad
 
-  sta TEMP_HI
+  tax
+
+  asl TEMP_LO
+  rol TEMP_HI
+  asl TEMP_LO
+  rol TEMP_HI
+  asl TEMP_LO
+  rol TEMP_HI
+  asl TEMP_LO
+  rol TEMP_HI
+
   lda TEMP_LO
-  asl
-  asl
-  asl
-  asl
-  ora TEMP_HI
+  txa
+  ora TEMP_LO
   sta TEMP_LO
 
   iny
@@ -458,6 +486,7 @@ parse_hex_byte:
   bne @parse_loop
 
   lda TEMP_LO
+  ldx TEMP_HI
   clc
   rts
 

@@ -344,7 +344,10 @@ prim_store:
 ; literal ( -- n )
 prim_literal:
   FETCH_IP
-  ldx #$00
+  sta TEMP_LO
+  FETCH_IP
+  tax
+  lda TEMP_LO
   PUSH_AX
   jmp next
 
