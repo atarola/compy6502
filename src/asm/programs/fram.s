@@ -1,0 +1,27 @@
+.setcpu "65c02"
+
+.include "include/compy6502.inc"
+
+DATA = $C040
+CONFIG = $C041
+STATUS = $C042
+
+WREN = %00000110
+WRDI = %00000100
+RDSR = %00000101
+WRSR = %00000001
+READ = %00000011
+FSTRD = %00001011
+WRITE = %00000010
+SLEEP = %10111001
+RDID = %10011111
+
+.org $1000
+  lda #$01
+  sta CONFIG
+  nop 
+  nop 
+  nop
+  lda CONFIG
+  sta $55
+  jmp WOZMON

@@ -5,6 +5,11 @@
 .ifndef COMPY6502_INC
 COMPY6502_INC = 1
 
+IO0_ADDR = $C000
+IO1_ADDR = $C040
+IO2_ADDR = $C080
+IO3_ADDR = $C0C0
+
 ;
 ; wozmon monitor
 ;

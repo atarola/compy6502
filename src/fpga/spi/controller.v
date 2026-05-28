@@ -12,6 +12,8 @@ module controller (
     input [7:0] cpu_data_in,
     output reg [7:0] cpu_data_out,
     output cpu_data_oeb,
+    output [7:0] debug_write_data,
+    output debug_write_tick,
 
     // SPI interface
     output sck,
@@ -47,6 +49,8 @@ module controller (
   wire engine_busy;
 
   assign cpu_data_oeb = !(!csb && !rdb);
+  assign debug_write_data = data_temp;
+  assign debug_write_tick = write_tick;
 
   synchronizer write_sync (
       .clk(clk),

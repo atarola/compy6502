@@ -2,6 +2,8 @@
 
 The SPI Controller is a memory-mapped SPI peripheral for a 6502-style bus. It provides byte transfers, four programmable active-low chip-select outputs, and a shared tri-state 8-bit data bus that is only driven during read cycles.
 
+Hardware note: the assembled board has the 6502 read/write strobes crossed relative to the original schematic labels. The FPGA top-level compensates for that wiring so the controller still sees the correct read and write edges.
+
 ## 1. Features
 - 6502-compatible register interface.
 - One-byte SPI transmit and receive register.
@@ -16,8 +18,8 @@ The SPI Controller is a memory-mapped SPI peripheral for a 6502-style bus. It pr
 | --- | --- | --- | --- |
 | `RESB` | `3` | In, active-low | Reset. |
 | `CSB` | `14` | In, active-low | Selects this peripheral. |
-| `RDB` | `5` | In, active-low | Read strobe. |
-| `WRB` | `4` | In, active-low | Write strobe. |
+| `RDB` | `5` | In, active-low | Read strobe. On the built board, this is the physical wire that the top-level routes to the controller write edge input. |
+| `WRB` | `4` | In, active-low | Write strobe. On the built board, this is the physical wire that the top-level routes to the controller read edge input. |
 | `REG_SELECT[1]` | `1` | In | Register select bit 1. |
 | `REG_SELECT[0]` | `2` | In | Register select bit 0. |
 | `DATA[7]` | `6` | Inout | Shared data bus bit 7. |
@@ -44,7 +46,7 @@ The SPI Controller is a memory-mapped SPI peripheral for a 6502-style bus. It pr
 ### 2.3 Local Indicators
 | Signal | Pin | Direction | Description |
 | --- | --- | --- | --- |
-| `LED` | `LED` | Out | High when `CSB` is asserted. |
+| `LED` | `LED` | Out | High when any `SPI_CSB[3:0]` bit is low. |
 
 ## 3. Register Map
 `REG_SELECT[1:0]` selects one of four register addresses.

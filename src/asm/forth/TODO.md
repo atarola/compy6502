@@ -45,7 +45,7 @@
       endif
     enddef
 
-    def countup
+    def count
       0
       begin
         dup 5 eql eqz
