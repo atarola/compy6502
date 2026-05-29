@@ -20,11 +20,38 @@ WOZMON = $F500
 ; ACIA
 ;
 
-ACIA_BASE = $C000
-ACIA_DATA = ACIA_BASE + 0
-ACIA_STATUS = ACIA_BASE + 1
-ACIA_COMMAND = ACIA_BASE + 2
-ACIA_CONTROL = ACIA_BASE + 3
+ACIA_DATA = IO0_ADDR + 0
+ACIA_STATUS = IO0_ADDR + 1
+ACIA_COMMAND = IO0_ADDR + 2
+ACIA_CONTROL = IO0_ADDR + 3
+
+;
+; SPI
+;
+
+SPI_DATA = IO1_ADDR + 0
+SPI_CONFIG = IO1_ADDR + 1
+SPI_STATUS = IO1_ADDR + 2
+
+; chip select
+
+SPI_CS_SEL0 = %00000000
+SPI_CS_SEL1 = %00000001
+SPI_CS_SEL2 = %00000010
+SPI_CS_SEL3 = %00000011
+
+SPI_CS_ENABLE = %00000100
+
+; clock rate
+
+SPI_CLK_125K = %00000000
+SPI_CLK_250K = %00001000
+SPI_CLK_500K = %00010000
+SPI_CLK_1M   = %00011000
+
+; SPI status register bits
+
+SPI_BUSY      = %00000001
 
 ;
 ; ROM ABI
@@ -46,10 +73,15 @@ K_PTR2_LO = $04
 K_PTR2_HI = $05
 K_PTR2 = K_PTR2_LO
 
-K_TMP0 = $06
-K_TMP1 = $07
-K_TMP2 = $08
-K_TMP3 = $09
+K_LEN_LO = $06
+K_LEN_HI = $07
+K_LEN = K_LEN_LO
+
+; clobberable scratch
+K_TMP0 = $08
+K_TMP1 = $09
+K_TMP2 = $0A
+K_TMP3 = $0B
 
 ; Kernel entry jump table
 ; can `jsr ACIA_GETC` to execute these subroutines
@@ -140,23 +172,84 @@ HEX_TO_NIBBLE = JUMP_BASE + (3 * 10)
 ; clobbers: A, X, flags
 LINE_EDIT = JUMP_BASE + (3 * 11)
 
+; Update SPI configuration.
+; in:  A = configuration byte
+; out: carry clear = configuration applied
+;      carry set   = configuration failed
+; clobbers: A, flags
+SPI_CONFIGURE = JUMP_BASE + (3 * 12)
+
+; Assert the configured SPI chip select.
+; in: none
+; out: carry clear = released
+;      carry set   = failed
+; clobbers: A, flags
+SPI_SELECT = JUMP_BASE + (3 * 13)
+
+; Release the configured SPI chip select.
+; in: none
+; out: carry clear = released
+;      carry set   = failed
+; clobbers: A, flags
+SPI_DESELECT = JUMP_BASE + (3 * 14)
+
+; Transfer one SPI byte.
+; in:  A = byte to transmit
+; out: A = received byte
+;      carry clear = success
+;      carry set   = transfer failed
+; clobbers: A, flags
+SPI_TRANSFER = JUMP_BASE + (3 * 15)
+
+; Transfer one SPI byte.
+; in:  A = byte to transmit
+; out: carry clear = success
+;      carry set   = transfer failed
+; clobbers: A, flags
+SPI_WRITE = JUMP_BASE + (3 * 16)
+
+; Initialize the FRAM for normal use.
+; in:  none
+; out: carry clear = initialized
+;      carry set   = initialization failed
+; clobbers: A, flags
+FRAM_SETUP = JUMP_BASE + (3 * 17)
+
+; Write a RAM chunk to FRAM.
+; in:  K_PTR  = source RAM address
+;      K_PTR2 = destination FRAM address
+;      K_LEN  = byte count
+; out: carry clear = written
+;      carry set   = write failed
+; clobbers: A, Y, flags, K_PTR, K_LEN
+FRAM_WRITE_CHUNK = JUMP_BASE + (3 * 18)
+
+; Read a FRAM chunk into RAM.
+; in:  K_PTR  = destination RAM address
+;      K_PTR2 = source FRAM address
+;      K_LEN  = byte count
+; out: carry clear = read
+;      carry set   = read failed
+; clobbers: A, Y, flags, K_PTR, K_LEN
+FRAM_READ_CHUNK = JUMP_BASE + (3 * 19)
+
 ;
 ; Helper macros
 ; 
 
-.macro INC_K_PTR
-  inc K_PTR_LO
+.macro INC16 ptr
+  inc ptr
   bne :+
-  inc K_PTR_HI
+  inc ptr+1
 :
 .endmacro
 
-.macro DEC_K_PTR
-  lda K_PTR_LO
+.macro DEC16 ptr
+  lda ptr
   bne :+
-  dec K_PTR_HI
+  dec ptr+1
 :
-  dec K_PTR_LO
+  dec ptr
 .endmacro
 
 .endif

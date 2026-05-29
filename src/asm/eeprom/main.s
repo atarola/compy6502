@@ -7,9 +7,11 @@
 
 .segment "KERNEL"
 .include "kernel/acia.s"
+.include "kernel/fram.s"
 .include "kernel/irq.s"
 .include "kernel/line.s"
 .include "kernel/loader.s"
+.include "kernel/spi.s"
 .include "kernel/strings.s"
 .include "kernel/vectors.s"
 

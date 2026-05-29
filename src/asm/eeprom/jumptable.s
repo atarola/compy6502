@@ -33,3 +33,27 @@ hex_to_nibble_trampoline:
 
 line_edit_trampoline:
   jmp line_edit
+
+spi_configure_trampoline:
+  jmp spi_configure
+
+spi_select_trampoline:
+  jmp spi_select
+
+spi_deselect_trampoline:
+  jmp spi_deselect
+
+spi_transfer_trampoline:
+  jmp spi_transfer
+
+spi_write_trampoline:
+  jmp spi_write
+
+fram_setup_trampoline:
+  jmp fram_setup
+
+fram_write_chunk_trampoline:
+  jmp fram_write_chunk
+
+fram_read_chunk_trampoline:
+  jmp fram_read_chunk
