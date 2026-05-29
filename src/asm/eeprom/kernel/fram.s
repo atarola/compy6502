@@ -27,7 +27,7 @@ fram_setup:
   jsr SPI_SELECT
 
   lda #FRAM_CMD_WREN
-  jsr SPI_TRANSFER
+  jsr SPI_WRITE
 
   jsr SPI_DESELECT
   clc
@@ -44,13 +44,13 @@ fram_write_chunk:
   jsr SPI_SELECT
 
   lda #FRAM_CMD_WRITE
-  jsr SPI_TRANSFER
+  jsr SPI_WRITE
 
   lda K_PTR2_HI
-  jsr SPI_TRANSFER
+  jsr SPI_WRITE
 
   lda K_PTR2_LO
-  jsr SPI_TRANSFER
+  jsr SPI_WRITE
 
   ldy #$00
 
@@ -60,7 +60,7 @@ fram_write_chunk:
   beq @end
 
   lda (K_PTR),y
-  jsr SPI_TRANSFER
+  jsr SPI_WRITE
 
   INC16 K_PTR
   DEC16 K_LEN
@@ -83,13 +83,13 @@ fram_read_chunk:
   jsr SPI_SELECT
 
   lda #FRAM_CMD_READ
-  jsr SPI_TRANSFER
+  jsr SPI_WRITE
 
   lda K_PTR2_HI
-  jsr SPI_TRANSFER
+  jsr SPI_WRITE
 
   lda K_PTR2_LO
-  jsr SPI_TRANSFER
+  jsr SPI_WRITE
 
   ldy #$00
 
