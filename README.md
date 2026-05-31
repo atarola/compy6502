@@ -59,12 +59,12 @@ $FFFA-$FFFF  CPU vectors
 
 ### I/O
 
-- [ ] Start working on SPI interface using a TinyFPGA BX on a breadboard.
-- [ ] Design an SPI card.
-- [ ] Source an SNES socket.
-- [ ] Start working on a VIA interface.
-- [ ] Design a VIA card.
-- [ ] Get I/O boards manufactured.
+- [x] Start working on SPI interface using a TinyFPGA BX on a breadboard.
+- [x] Design an SPI card.
+- [x] Source an SNES socket.
+- [x] Start working on a VIA interface.
+- [x] Design a VIA card.
+- [x] Get I/O boards manufactured.
 
 ### Tetris
 

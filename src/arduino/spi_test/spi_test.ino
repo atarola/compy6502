@@ -1,8 +1,8 @@
 // Arduino -> TinyFPGA BX 6502 control bus
 const int RESB_PIN = 15;  // TinyFPGA 3: RESB
 const int CSB_PIN = 20;   // TinyFPGA 14: CSB
-const int RDB_PIN = 19;   // TinyFPGA 5: RDB
-const int WRB_PIN = 18;   // TinyFPGA 4: WRB
+const int RDB_PIN = 19;  // TinyFPGA 5: RDB
+const int WRB_PIN = 18;  // TinyFPGA 4: WRB
 
 // Arduino -> TinyFPGA BX register select bus
 const int REG_SELECT_1_PIN = 16;  // TinyFPGA 1: REG_SELECT[1]
@@ -13,7 +13,7 @@ const int REG_SELECT_0_PIN = 17;  // TinyFPGA 2: REG_SELECT[0]
 const int DATA_3_PIN = 24;  // TinyFPGA 10: DATA[3]
 const int DATA_2_PIN = 23;  // TinyFPGA 11: DATA[2]
 const int DATA_1_PIN = 22;  // TinyFPGA 12: DATA[1]
-const int DATA_0_PIN = 0;   // TinyFPGA 13: DATA[0]
+const int DATA_0_PIN = 0;  // TinyFPGA 13: DATA[0]
 
 // TinyFPGA BX -> Arduino observed bus control
 const int DATA_OUT_PIN = 21;  // TinyFPGA 15: DATA_OUT
@@ -22,9 +22,9 @@ const int DATA_OUT_PIN = 21;  // TinyFPGA 15: DATA_OUT
 const int SPI_CSB_0_PIN = 5;  // TinyFPGA 16: SPI_CSB[0]
 const int SPI_CSB_1_PIN = 6;  // TinyFPGA 17: SPI_CSB[1]
 const int SPI_CSB_2_PIN = 9;  // TinyFPGA 18: SPI_CSB[2]
-const int SPI_CSB_3_PIN = 10; // TinyFPGA 19: SPI_CSB[3]
-const int SCK_PIN = 11;       // TinyFPGA 20: SCK
-const int MOSI_PIN = 12;      // TinyFPGA 21: MOSI
+const int SPI_CSB_3_PIN = 10;  // TinyFPGA 19: SPI_CSB[3]
+const int SCK_PIN = 11;        // TinyFPGA 20: SCK
+const int MOSI_PIN = 12;       // TinyFPGA 21: MOSI
 
 // Arduino -> TinyFPGA BX SPI input
 const int MISO_PIN = 1;       // TinyFPGA 22: MISO
