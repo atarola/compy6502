@@ -16,12 +16,12 @@ class TestKernelSrecLoader(BaseTest):
         cpu = self.get_rom_cpu()
         address = self.get_rom_address("SREC_LOAD")
 
-        cpu.install_acia(INPUT_SCRIPT)
+        acia = cpu.install_acia(INPUT_SCRIPT)
         cpu.poke(0x0600, srec_loader_caller(address))
         cpu.pc = 0x0600
 
         for _ in range(5000):
-            if cpu.memory[0x0400] == 0xAA and cpu.acia_output() == b".":
+            if cpu.memory[0x0400] == 0xAA and acia.output() == b".":
                 break
 
             cpu.step()
@@ -29,56 +29,56 @@ class TestKernelSrecLoader(BaseTest):
             self.fail(f"loader did not write and ack the record: {cpu.register_line()}")
 
         self.assertEqual(0xAA, cpu.memory[0x0400])
-        self.assertEqual(b".", cpu.acia_output())
+        self.assertEqual(b".", acia.output())
 
     def test_srec_loader_returns_on_s9(self):
         cpu = self.get_rom_cpu()
         address = self.get_rom_address("SREC_LOAD")
 
-        cpu.install_acia(END_SCRIPT)
+        acia = cpu.install_acia(END_SCRIPT)
         cpu.poke(0x0600, srec_loader_caller(address))
         cpu.pc = 0x0600
 
         cpu.until_pc(0x0603)
 
-        self.assertEqual(b".", cpu.acia_output())
+        self.assertEqual(b".", acia.output())
         self.assertEqual(0x00, cpu.memory[0x0400])
 
     def test_srec_loader_rejects_bad_checksum(self):
         cpu = self.get_rom_cpu()
         address = self.get_rom_address("SREC_LOAD")
 
-        cpu.install_acia(BAD_CHECKSUM_SCRIPT)
+        acia = cpu.install_acia(BAD_CHECKSUM_SCRIPT)
         cpu.poke(0x0600, srec_loader_caller(address))
         cpu.pc = 0x0600
 
         cpu.until_pc(0x0603)
 
-        self.assertEqual(b"!", cpu.acia_output())
+        self.assertEqual(b"!", acia.output())
         self.assertEqual(0xAA, cpu.memory[0x0400])
 
     def test_srec_loader_rejects_bad_hex(self):
         cpu = self.get_rom_cpu()
         address = self.get_rom_address("SREC_LOAD")
 
-        cpu.install_acia(BAD_HEX_SCRIPT)
+        acia = cpu.install_acia(BAD_HEX_SCRIPT)
         cpu.poke(0x0600, srec_loader_caller(address))
         cpu.pc = 0x0600
 
         cpu.until_pc(0x0603)
 
-        self.assertEqual(b"!", cpu.acia_output())
+        self.assertEqual(b"!", acia.output())
         self.assertEqual(0x00, cpu.memory[0x0400])
 
     def test_srec_loader_rejects_bad_type(self):
         cpu = self.get_rom_cpu()
         address = self.get_rom_address("SREC_LOAD")
 
-        cpu.install_acia(BAD_TYPE_SCRIPT)
+        acia = cpu.install_acia(BAD_TYPE_SCRIPT)
         cpu.poke(0x0600, srec_loader_caller(address))
         cpu.pc = 0x0600
 
         cpu.until_pc(0x0603)
 
-        self.assertEqual(b"!", cpu.acia_output())
+        self.assertEqual(b"!", acia.output())
         self.assertEqual(0x00, cpu.memory[0x0400])

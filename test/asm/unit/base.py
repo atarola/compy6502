@@ -7,17 +7,85 @@ from pathlib import Path
 from py65.devices import mpu65c02
 from py65.memory import ObservableMemory
 
-ACIA_DATA = 0xC000
+ACIA_DATA   = 0xC000
 ACIA_STATUS = 0xC001
-K_PTR_LO = 0x02
-K_PTR_HI = 0x03
-K_PTR2_LO = 0x04
-K_PTR2_HI = 0x05
+SPI_DATA    = 0xC040
+SPI_CONFIG  = 0xC041
+SPI_STATUS  = 0xC042
+K_PTR_LO    = 0x02
+K_PTR_HI    = 0x03
+K_PTR2_LO   = 0x04
+K_PTR2_HI   = 0x05
+K_LEN_LO    = 0x06
+K_LEN_HI    = 0x07
 
 ASSEMBLE = "ca65 -I ./src/asm/eeprom -I ./src/asm -I ./src -o ./test/asm/bin/{0}.o ./test/asm/{0}.s"
 LINK = "ld65 -C ./src/asm/eeprom/compy6502.x -o ./test/asm/bin/{0}.bin ./test/asm/bin/{0}.o"
 ROM = "./bin/compy6502.bin"
 ROM_DEBUG = Path("./bin/compy6502.dbg")
+
+
+class AciaDevice:
+    def __init__(self, data=b""):
+        if isinstance(data, str):
+            data = data.encode("ascii")
+        self.input = deque(data)
+        self.output_buf = bytearray()
+
+    def install(self, memory):
+        memory.subscribe_to_read([ACIA_STATUS], self.read_status)
+        memory.subscribe_to_read([ACIA_DATA], self.read_data)
+        memory.subscribe_to_write([ACIA_DATA], self.write_data)
+
+    def output(self):
+        return bytes(self.output_buf)
+
+    def read_status(self, address):
+        return 0x08 if self.input else 0x00
+
+    def read_data(self, address):
+        return self.input.popleft() if self.input else 0x00
+
+    def write_data(self, address, value):
+        self.output_buf.append(value)
+        return value
+
+
+class SpiDevice:
+    def __init__(self, rx_data=b""):
+        self.tx_buf = []
+        self.rx_buf = deque(rx_data)
+        self.config_reg = 0x00
+
+    def install(self, memory):
+        memory.subscribe_to_read([SPI_STATUS], self.read_status)
+        memory.subscribe_to_read([SPI_DATA], self.read_data)
+        memory.subscribe_to_read([SPI_CONFIG], self.read_config)
+        memory.subscribe_to_write([SPI_DATA], self.write_data)
+        memory.subscribe_to_write([SPI_CONFIG], self.write_config)
+
+    def tx(self):
+        return bytes(self.tx_buf)
+
+    def config(self):
+        return self.config_reg
+
+    def read_status(self, address):
+        return 0x00
+
+    def read_data(self, address):
+        return self.rx_buf.popleft() if self.rx_buf else 0x00
+
+    def read_config(self, address):
+        return self.config_reg
+
+    def write_data(self, address, value):
+        self.tx_buf.append(value)
+        return value
+
+    def write_config(self, address, value):
+        self.config_reg = value
+        return value
 
 
 class BaseTest(unittest.TestCase):
@@ -92,7 +160,6 @@ class BaseTest(unittest.TestCase):
         with open("./test/asm/bin/{0}.bin".format(filename), "rb") as f:
             output = f.read()
 
-        # create our start position
         start = int.from_bytes(output[0x7ffc:0x7ffe], byteorder="little")
         return (start, output)
 
@@ -112,37 +179,22 @@ class TestMPU(mpu65c02.MPU):
         self.memory[K_PTR2_LO] = address & 0xFF
         self.memory[K_PTR2_HI] = address >> 8
 
+    def set_k_len(self, length):
+        self.memory[K_LEN_LO] = length & 0xFF
+        self.memory[K_LEN_HI] = (length >> 8) & 0xFF
+
     def carry(self):
         return bool(self.p & 0x01)
 
     def install_acia(self, data=b""):
-        if isinstance(data, str):
-            data = data.encode("ascii")
+        device = AciaDevice(data)
+        device.install(self.memory)
+        return device
 
-        self._acia_input = deque(data)
-        self._acia_output = bytearray()
-        self.memory.subscribe_to_read([ACIA_STATUS], self._read_acia_status)
-        self.memory.subscribe_to_read([ACIA_DATA], self._read_acia_data)
-        self.memory.subscribe_to_write([ACIA_DATA], self._write_acia_data)
-
-    def acia_output(self):
-        return bytes(self._acia_output)
-
-    def _read_acia_status(self, address):
-        if self._acia_input:
-            return 0x08
-
-        return 0x00
-
-    def _read_acia_data(self, address):
-        if self._acia_input:
-            return self._acia_input.popleft()
-
-        return 0x00
-
-    def _write_acia_data(self, address, value):
-        self._acia_output.append(value)
-        return value
+    def install_spi(self, rx_data=b""):
+        device = SpiDevice(rx_data)
+        device.install(self.memory)
+        return device
 
     def register_line(self):
         return f"PC={self.pc:04X} A={self.a:02X} X={self.x:02X} Y={self.y:02X}"
@@ -151,14 +203,12 @@ class TestMPU(mpu65c02.MPU):
         while True:
             if self.memory[self.pc] == 0x00:
                 break
-
             self.step()
 
     def until_pc(self, address, max_steps=1000):
         for _ in range(max_steps):
             if self.pc == address:
                 return
-
             self.step()
 
         raise AssertionError(f"pc did not reach {hex(address)} within {max_steps} steps")
