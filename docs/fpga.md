@@ -43,14 +43,14 @@ Close and reopen PowerShell after `ensurepath` if `pipx` is not found.
 Build the FPGA target in WSL:
 
 ```sh
-uv run doit fpga:build -t blink
+uv run doit fpga:build -t spi
 ```
 
 Press reset on the TinyFPGA BX so the bootloader is active, then program the
 bitstream from Windows:
 
 ```powershell
-tinyprog -p "\\wsl.localhost\Ubuntu\home\atarola\code\compy6502\build\fpga\blink\blink.bin"
+tinyprog -p "\\wsl.localhost\Ubuntu\home\atarola\code\compy6502\build\fpga\spi\spi.bin"
 ```
 
 The USB serial device can disappear after programming because the bitstream
@@ -69,8 +69,8 @@ By default, non-programming actions run against all targets under `src/fpga/`.
 Use `-t` to select one target:
 
 ```sh
-uv run doit fpga:sim -t blink
-uv run doit fpga:build -t blink
+uv run doit fpga:sim -t spi
+uv run doit fpga:build -t spi
 ```
 
 Supported FPGA actions are:
@@ -100,10 +100,10 @@ The final bitstream for a target is written to:
 build/fpga/<target>/<target>.bin
 ```
 
-For the blink target:
+For the spi target:
 
 ```text
-build/fpga/blink/blink.bin
+build/fpga/spi/spi.bin
 ```
 
 Program the TinyFPGA BX from Windows with `tinyprog` rather than passing USB

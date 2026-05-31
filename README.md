@@ -45,31 +45,6 @@ $F500-$FFF9  Wozmon fallback monitor
 $FFFA-$FFFF  CPU vectors
 ```
 
-## TODO
-
-### Base Computer
-
-- [x] Set up the ACIA design on a breadboard and test it.
-- [x] Create the ACIA card.
-- [x] Revise the CPU card.
-- [x] Revise the ROM card.
-- [x] Revise the backplane.
-- [x] Create a front-panel card with reset and clock.
-- [x] Get new boards manufactured.
-
-### I/O
-
-- [x] Start working on SPI interface using a TinyFPGA BX on a breadboard.
-- [x] Design an SPI card.
-- [x] Source an SNES socket.
-- [x] Start working on a VIA interface.
-- [x] Design a VIA card.
-- [x] Get I/O boards manufactured.
-
-### Tetris
-
-- [ ] Think about later.
-
 ## Credits
 
 - `docs/mmu.png`: Mike McLaren, K8LH.
