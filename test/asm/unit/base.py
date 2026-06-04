@@ -25,69 +25,6 @@ ROM = "./bin/compy6502.bin"
 ROM_DEBUG = Path("./bin/compy6502.dbg")
 
 
-class AciaDevice:
-    def __init__(self, data=b""):
-        if isinstance(data, str):
-            data = data.encode("ascii")
-        self.input = deque(data)
-        self.output_buf = bytearray()
-
-    def install(self, memory):
-        memory.subscribe_to_read([ACIA_STATUS], self.read_status)
-        memory.subscribe_to_read([ACIA_DATA], self.read_data)
-        memory.subscribe_to_write([ACIA_DATA], self.write_data)
-
-    def output(self):
-        return bytes(self.output_buf)
-
-    def read_status(self, address):
-        return 0x08 if self.input else 0x00
-
-    def read_data(self, address):
-        return self.input.popleft() if self.input else 0x00
-
-    def write_data(self, address, value):
-        self.output_buf.append(value)
-        return value
-
-
-class SpiDevice:
-    def __init__(self, rx_data=b""):
-        self.tx_buf = []
-        self.rx_buf = deque(rx_data)
-        self.config_reg = 0x00
-
-    def install(self, memory):
-        memory.subscribe_to_read([SPI_STATUS], self.read_status)
-        memory.subscribe_to_read([SPI_DATA], self.read_data)
-        memory.subscribe_to_read([SPI_CONFIG], self.read_config)
-        memory.subscribe_to_write([SPI_DATA], self.write_data)
-        memory.subscribe_to_write([SPI_CONFIG], self.write_config)
-
-    def tx(self):
-        return bytes(self.tx_buf)
-
-    def config(self):
-        return self.config_reg
-
-    def read_status(self, address):
-        return 0x00
-
-    def read_data(self, address):
-        return self.rx_buf.popleft() if self.rx_buf else 0x00
-
-    def read_config(self, address):
-        return self.config_reg
-
-    def write_data(self, address, value):
-        self.tx_buf.append(value)
-        return value
-
-    def write_config(self, address, value):
-        self.config_reg = value
-        return value
-
-
 class BaseTest(unittest.TestCase):
     _rom_symbols = None
 
@@ -221,3 +158,66 @@ class TestMPU(mpu65c02.MPU):
 
     def get_stack(self, loc):
         return self.get_word(self.x + (2 * loc))
+
+
+class AciaDevice:
+    def __init__(self, data=b""):
+        if isinstance(data, str):
+            data = data.encode("ascii")
+        self.input = deque(data)
+        self.output_buf = bytearray()
+
+    def install(self, memory):
+        memory.subscribe_to_read([ACIA_STATUS], self.read_status)
+        memory.subscribe_to_read([ACIA_DATA], self.read_data)
+        memory.subscribe_to_write([ACIA_DATA], self.write_data)
+
+    def output(self):
+        return bytes(self.output_buf)
+
+    def read_status(self, address):
+        return 0x08 if self.input else 0x00
+
+    def read_data(self, address):
+        return self.input.popleft() if self.input else 0x00
+
+    def write_data(self, address, value):
+        self.output_buf.append(value)
+        return value
+
+
+class SpiDevice:
+    def __init__(self, rx_data=b""):
+        self.tx_buf = []
+        self.rx_buf = deque(rx_data)
+        self.config_reg = 0x00
+
+    def install(self, memory):
+        memory.subscribe_to_read([SPI_STATUS], self.read_status)
+        memory.subscribe_to_read([SPI_DATA], self.read_data)
+        memory.subscribe_to_read([SPI_CONFIG], self.read_config)
+        memory.subscribe_to_write([SPI_DATA], self.write_data)
+        memory.subscribe_to_write([SPI_CONFIG], self.write_config)
+
+    def tx(self):
+        return bytes(self.tx_buf)
+
+    def config(self):
+        return self.config_reg
+
+    def read_status(self, address):
+        return 0x00
+
+    def read_data(self, address):
+        return self.rx_buf.popleft() if self.rx_buf else 0x00
+
+    def read_config(self, address):
+        return self.config_reg
+
+    def write_data(self, address, value):
+        self.tx_buf.append(value)
+        return value
+
+    def write_config(self, address, value):
+        self.config_reg = value
+        return value

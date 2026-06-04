@@ -10,7 +10,7 @@
 #define MAX_REPORT 4
 
 QueueHandle_t kbdQueue = nullptr;
-static uint8_t const keycode2ascii[128][2] = {HID_KEYCODE_TO_ASCII};
+static uint8_t const keycode2ascii[128][2] = { HID_KEYCODE_TO_ASCII };
 
 // Each HID instance can has multiple reports
 static struct {
@@ -25,20 +25,20 @@ struct AnsiKey {
 
 // mapping of HID keys to ansi keycodes
 static const AnsiKey ansiKeys[] = {
-  { HID_KEY_ARROW_UP,    "\x1B[A" },
-  { HID_KEY_ARROW_DOWN,  "\x1B[B" },
+  { HID_KEY_ARROW_UP, "\x1B[A" },
+  { HID_KEY_ARROW_DOWN, "\x1B[B" },
   { HID_KEY_ARROW_RIGHT, "\x1B[C" },
-  { HID_KEY_ARROW_LEFT,  "\x1B[D" },
+  { HID_KEY_ARROW_LEFT, "\x1B[D" },
 
-  { HID_KEY_HOME,        "\x1B[H" },
-  { HID_KEY_END,         "\x1B[F" },
+  { HID_KEY_HOME, "\x1B[H" },
+  { HID_KEY_END, "\x1B[F" },
 
-  { HID_KEY_DELETE,      "\x1B[3~" },
+  { HID_KEY_DELETE, "\x1B[3~" },
 
-  { HID_KEY_F1,          "\x1BOP" },
-  { HID_KEY_F2,          "\x1BOQ" },
-  { HID_KEY_F3,          "\x1BOR" },
-  { HID_KEY_F4,          "\x1BOS" },
+  { HID_KEY_F1, "\x1BOP" },
+  { HID_KEY_F2, "\x1BOQ" },
+  { HID_KEY_F3, "\x1BOR" },
+  { HID_KEY_F4, "\x1BOS" },
 };
 
 void kbdInit() {
@@ -102,6 +102,8 @@ static void processKeyPress(hid_keyboard_report_t const *report, uint8_t keycode
   bool shifted = reportHasShift(report);
   uint8_t ascii = keycode2ascii[keycode][shifted ? 1 : 0];
 
+  logMessage("kbd: ascii=%02X", ascii);
+
   if (ascii != 0) {
     xQueueSend(kbdQueue, &ascii, 0);
     return;
@@ -111,7 +113,7 @@ static void processKeyPress(hid_keyboard_report_t const *report, uint8_t keycode
 }
 
 static void processKbdReport(hid_keyboard_report_t const *report) {
-  static hid_keyboard_report_t previousReport = {0, 0, {0}};
+  static hid_keyboard_report_t previousReport = { 0, 0, { 0 } };
 
   if (kbdQueue == nullptr) {
     return;
@@ -131,13 +133,13 @@ static void processKbdReport(hid_keyboard_report_t const *report) {
 
 extern "C" {
   void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *desc_report, uint16_t desc_len) {
-    (void) desc_report;
-    (void) desc_len;
+    (void)desc_report;
+    (void)desc_len;
 
     logMessage("HID device address = %d, instance = %d is mounted", dev_addr, instance);
 
     // Interface protocol (hid_interface_protocol_enum_t)
-    const char *protocol_str[] = {"None", "Keyboard", "Mouse"};
+    const char *protocol_str[] = { "None", "Keyboard", "Mouse" };
     uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
 
     logMessage("HID Interface Protocol = %s", protocol_str[itf_protocol]);
@@ -166,7 +168,7 @@ extern "C" {
     uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
 
     if (itf_protocol == HID_ITF_PROTOCOL_KEYBOARD) {
-      processKbdReport((hid_keyboard_report_t const *) report);
+      processKbdReport((hid_keyboard_report_t const *)report);
     }
 
     // continue to request to receive report

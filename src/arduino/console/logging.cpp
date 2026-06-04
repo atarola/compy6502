@@ -16,16 +16,11 @@ void logInit() {
 }
 
 void logTask(void *parameter) {
-  Serial.begin(115200);
-  delay(1000);
-
   LogMessage msg;
 
   for (;;) {
     if (xQueueReceive(logQueue, &msg, portMAX_DELAY) == pdTRUE) {
-      if (Serial) {
-        Serial.println(msg.text);
-      }
+      Serial.println(msg.text);
     }
   }
 }
