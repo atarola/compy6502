@@ -44,7 +44,7 @@ void hostInit() {
   txByte = 0;
   rxByte = 0;
 
-  spi_init(spi1, 1000000);
+  spi_init(spi0, 1000000);
   spi_set_format(spi0, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
   spi_set_slave(spi0, true);
 }
