@@ -57,7 +57,6 @@ void displayTask(void *parameter) {
 
   for (;;) {
     if (xQueueReceive(eveQueue, &txn, portMAX_DELAY) == pdTRUE) {
-      logMessage("got txn");
       executeTxn(&txn);
     }
   }
@@ -193,7 +192,6 @@ static uint8_t eveInit(void) {
   do {
     vTaskDelay(pdMS_TO_TICKS(1)); 
     chipid = displayRead8(REG_ID);
-    logMessage("chipid=%02X", chipid);
     timeout++;
     if (timeout > 400) return 0;
   } while (chipid != 0x7C);
@@ -244,7 +242,7 @@ static uint8_t eveInit(void) {
   displayWrite8(REG_PCLK, EVE_PCLK);
 
   // backlight on at 25%
-  displayWrite8(REG_PWM_DUTY, 0x20);
+  displayWrite8(REG_PWM_DUTY, 0x50);
 
   // wait for coprocessor
   timeout = 0;

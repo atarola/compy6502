@@ -7,7 +7,7 @@
 #include "display.h"
 #include "logging.h"
 
-#define TERM_COLS 60
+#define TERM_COLS 58
 #define TERM_ROWS 17
 
 #define CLAMP(v, lo, hi) ((v) < (lo) ? (lo) : (v) > (hi) ? (hi) \
@@ -15,16 +15,16 @@
 
 const uint8_t ansi_to_textvga[] = {
   0x00,  // 0  - black
-  0x08,  // 1  - red
+  0x04,  // 1  - red
   0x02,  // 2  - green
-  0x0A,  // 3  - yellow
+  0x06,  // 3  - yellow
   0x01,  // 4  - blue
   0x05,  // 5  - magenta
   0x03,  // 6  - cyan
-  0x0F,  // 7  - white
-  0x07,  // 8  - bright black (dark grey)
+  0x07,  // 7  - white
+  0x08,  // 8  - bright black (dark grey)
   0x0C,  // 9  - bright red
-  0x06,  // 10 - bright green
+  0x0A,  // 10 - bright green
   0x0E,  // 11 - bright yellow
   0x09,  // 12 - bright blue
   0x0D,  // 13 - bright magenta
@@ -47,6 +47,9 @@ static int cursor_col;
 static uint8_t cursor_fg;
 static uint8_t cursor_bg;
 static bool cursor_visible;
+static uint8_t cursor_under_ch;
+static uint8_t cursor_under_attr;
+static TickType_t cursor_blink_ticks;
 static TermState state;
 static char cmd_buf[32];
 static int cmd_len;
@@ -72,15 +75,17 @@ static void terminalPutc(int row, int col, char ch, uint8_t attr);
 static void terminalPutCharacter(uint8_t *ch);
 static void terminalRender();
 static void terminalRowClear();
+static void terminalWriteToEve();
 
 // --- init ---
 
 void terminalInit() {
   cursor_row = 0;
   cursor_col = 0;
-  cursor_fg = 0x0F;
+  cursor_fg = 0x0A;
   cursor_bg = 0x00;
   cursor_visible = true;
+  cursor_blink_ticks = xTaskGetTickCount();
   state = STATE_NORMAL;
   cmd_len = 0;
 
@@ -104,9 +109,7 @@ void terminalTask(void *parameter) {
   uint8_t ch;
 
   for (;;) {
-    if (xQueueReceive(terminalQueue, &ch, portMAX_DELAY) == pdTRUE) {
-      logMessage("terminalTask: ascii=%02X", ch);
-
+    if (xQueueReceive(terminalQueue, &ch, pdMS_TO_TICKS(250)) == pdTRUE) {
       switch (state) {
         case STATE_NORMAL:
           onStateNormal(&ch);
@@ -122,6 +125,13 @@ void terminalTask(void *parameter) {
           break;
       }
     }
+
+    if (xTaskGetTickCount() - cursor_blink_ticks >= pdMS_TO_TICKS(500)) {
+      cursor_blink_ticks = xTaskGetTickCount();
+      cursor_visible = !cursor_visible;
+      terminalWriteToEve();
+      terminalRender();
+    }
   }
 }
 
@@ -130,21 +140,41 @@ void terminalReceiveChar(uint8_t *ch) {
     return;
   }
 
-  logMessage("terminalReceiveChar: ascii=%02X", *ch);
   xQueueSend(terminalQueue, ch, 0);
 }
 
 // --- state machine ---
 
 static void onStateNormal(uint8_t *ch) {
-  logMessage("onStateNormal: ascii=%02X", *ch);
-
   if (*ch == 0x1B) {
     state = STATE_ESC;
-  } else {
-    terminalPutCharacter(ch);
-
+    return;
   }
+
+  if (*ch == '\n' || *ch == '\r') {
+    cursor_col = 0;
+    cursor_row++;
+    if (cursor_row >= TERM_ROWS) {
+      cursor_row = TERM_ROWS - 1;
+      memmove(screen[0], screen[1], sizeof(screen) - sizeof(screen[0]));
+      terminalRowClear();
+    }
+    terminalWriteToEve();
+    terminalRender();
+    return;
+  }
+
+  if (*ch == '\b') {
+    if (cursor_col > 0) {
+      cursor_col--;
+      terminalPutc(cursor_row, cursor_col, ' ', (cursor_bg << 4) | cursor_fg);
+      terminalWriteToEve();
+      terminalRender();
+    }
+    return;
+  }
+
+  terminalPutCharacter(ch);
 }
 
 static void onStateEsc(uint8_t *ch) {
@@ -186,7 +216,7 @@ static void terminalClear() {
   for (int r = 0; r < TERM_ROWS; r++) {
     for (int c = 0; c < TERM_COLS; c++) {
       screen[r][c][0] = ' ';
-      screen[r][c][1] = 0x70;
+      screen[r][c][1] = 0x0A;
     }
   }
 }
@@ -194,20 +224,17 @@ static void terminalClear() {
 static void terminalRowClear() {
   for (int c = 0; c < TERM_COLS; c++) {
     screen[cursor_row][c][0] = ' ';
-    screen[cursor_row][c][1] = 0x70;
+    screen[cursor_row][c][1] = (cursor_bg << 4) | cursor_fg;
   }
 }
 
 static void terminalPutc(int row, int col, char ch, uint8_t attr) {
-  logMessage("terminalPutc: ascii=%02X", ch);
   if (row < 0 || row >= TERM_ROWS || col < 0 || col >= TERM_COLS) return;
   screen[row][col][0] = ch;
   screen[row][col][1] = attr;
 }
 
 static void terminalRender() {
-  logMessage("terminalRender");
-
   int i = 0;
   displayWrite32(EVE_RAM_DL + (i++ * 4), DL_CLEAR_RGB | 0x000000);
   displayWrite32(EVE_RAM_DL + (i++ * 4), DL_CLEAR | CLR_COL | CLR_STN | CLR_TAG);
@@ -217,36 +244,53 @@ static void terminalRender() {
   displayWrite32(EVE_RAM_DL + (i++ * 4), BITMAP_SIZE(EVE_NEAREST, EVE_BORDER, EVE_BORDER, TERM_COLS * 8, TERM_ROWS * 16));
   displayWrite32(EVE_RAM_DL + (i++ * 4), BLEND_FUNC(EVE_ONE, EVE_ZERO));
   displayWrite32(EVE_RAM_DL + (i++ * 4), BEGIN(EVE_BITMAPS));
-  displayWrite32(EVE_RAM_DL + (i++ * 4), VERTEX2F(0, 0));
+  displayWrite32(EVE_RAM_DL + (i++ * 4), VERTEX2F(8 * 16, 0));
   displayWrite32(EVE_RAM_DL + (i++ * 4), END());
   displayWrite32(EVE_RAM_DL + (i++ * 4), DL_DISPLAY);
   displayWrite32(REG_DLSWAP, EVE_DLSWAP_FRAME);
-
-  logMessage("terminalRender: BITMAP_LAYOUT=%02X", BITMAP_LAYOUT(EVE_TEXTVGA, TERM_COLS * 2, TERM_ROWS));
 }
 
 void terminalWriteToEve() {
-  logMessage("terminalWriteToEve");
+  if (cursor_visible) {
+    cursor_under_ch   = screen[cursor_row][cursor_col][0];
+    cursor_under_attr = screen[cursor_row][cursor_col][1];
+    screen[cursor_row][cursor_col][0] = 0xDB;
+    screen[cursor_row][cursor_col][1] = (cursor_bg << 4) | cursor_fg;
+  }
 
-	// flatten screen buffer into a single array
-	uint8_t buf[TERM_ROWS * TERM_COLS * 2];
-	int i = 0;
-	for (int r = 0; r < TERM_ROWS; r++)
-		for (int c = 0; c < TERM_COLS; c++) {
-			buf[i++] = screen[r][c][0];  // char
-			buf[i++] = screen[r][c][1];  // attr
-		}
+  uint8_t buf[TERM_ROWS * TERM_COLS * 2];
+  int i = 0;
+  for (int r = 0; r < TERM_ROWS; r++)
+    for (int c = 0; c < TERM_COLS; c++) {
+      buf[i++] = screen[r][c][0];
+      buf[i++] = screen[r][c][1];
+    }
 
   displayWrite(EVE_RAM_G, buf, sizeof(buf));
-  logMessage("terminalWriteToEve done");
+
+  if (cursor_visible) {
+    screen[cursor_row][cursor_col][0] = cursor_under_ch;
+    screen[cursor_row][cursor_col][1] = cursor_under_attr;
+  }
 }
 
 static void terminalPutCharacter(uint8_t *ch) {
-  logMessage("terminalPutCharacter: ascii=%02X", *ch);
-  terminalPutc(cursor_row, cursor_col, *ch, 0x1F);
+  terminalPutc(cursor_row, cursor_col, *ch, (cursor_bg << 4) | cursor_fg);
+
+  cursor_col++;
+
+  if (cursor_col == TERM_COLS) {
+    cursor_col = 0;
+    if (cursor_row == TERM_ROWS) {
+      memmove(screen[0], screen[1], sizeof(screen) - sizeof(screen[0]));
+      terminalRowClear();
+    } else {
+      cursor_row++;
+    }
+  }
+
   terminalWriteToEve();
   terminalRender();
-  logMessage("terminalPutCharacter done");
 }
 
 // --- commands ---
@@ -307,12 +351,16 @@ static void cmdCursorLeft(int *params, int count) {
 // ESC [ J - erase entire screen
 static void cmdEraseScreen(int *params, int count) {
   terminalClear();
+  terminalWriteToEve();
+  terminalRender();
 }
 
 // ESC [ K - erase line from cursor
 // ESC [ 2 K - erase entire line
 static void cmdEraseLine(int *params, int count) {
   terminalRowClear();
+  terminalWriteToEve();
+  terminalRender();
 }
 
 // ESC [ 0 m       - reset colors
