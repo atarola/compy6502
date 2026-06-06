@@ -107,9 +107,10 @@ void terminalInit() {
 
 void terminalTask(void *parameter) {
   uint8_t ch;
+  TickType_t refresh_ticks = xTaskGetTickCount();
 
   for (;;) {
-    if (xQueueReceive(terminalQueue, &ch, pdMS_TO_TICKS(250)) == pdTRUE) {
+    if (xQueueReceive(terminalQueue, &ch, pdMS_TO_TICKS(1)) == pdTRUE) {
       switch (state) {
         case STATE_NORMAL:
           onStateNormal(&ch);
@@ -129,6 +130,10 @@ void terminalTask(void *parameter) {
     if (xTaskGetTickCount() - cursor_blink_ticks >= pdMS_TO_TICKS(500)) {
       cursor_blink_ticks = xTaskGetTickCount();
       cursor_visible = !cursor_visible;
+    }
+
+    if (xTaskGetTickCount() - refresh_ticks >= pdMS_TO_TICKS(16)) {
+      refresh_ticks = xTaskGetTickCount();
       terminalWriteToEve();
       terminalRender();
     }
@@ -159,8 +164,6 @@ static void onStateNormal(uint8_t *ch) {
       memmove(screen[0], screen[1], sizeof(screen) - sizeof(screen[0]));
       terminalRowClear();
     }
-    terminalWriteToEve();
-    terminalRender();
     return;
   }
 
@@ -168,8 +171,6 @@ static void onStateNormal(uint8_t *ch) {
     if (cursor_col > 0) {
       cursor_col--;
       terminalPutc(cursor_row, cursor_col, ' ', (cursor_bg << 4) | cursor_fg);
-      terminalWriteToEve();
-      terminalRender();
     }
     return;
   }
@@ -290,8 +291,6 @@ static void terminalPutCharacter(uint8_t *ch) {
     }
   }
 
-  terminalWriteToEve();
-  terminalRender();
 }
 
 // --- commands ---
@@ -352,16 +351,12 @@ static void cmdCursorLeft(int *params, int count) {
 // ESC [ J - erase entire screen
 static void cmdEraseScreen(int *params, int count) {
   terminalClear();
-  terminalWriteToEve();
-  terminalRender();
 }
 
 // ESC [ K - erase line from cursor
 // ESC [ 2 K - erase entire line
 static void cmdEraseLine(int *params, int count) {
   terminalRowClear();
-  terminalWriteToEve();
-  terminalRender();
 }
 
 // ESC [ 0 m       - reset colors

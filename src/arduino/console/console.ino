@@ -56,7 +56,7 @@ void setup() {
   xTaskCreate(logTask, "logTask", 2048, nullptr, tskIDLE_PRIORITY + 1, &logHandle);
   xTaskCreate(usbTask, "usbTask", 2048, NULL, configMAX_PRIORITIES - 1, &usbHandle);
   xTaskCreate(blinkTask, "blinkTask", 1024, NULL, tskIDLE_PRIORITY + 1, &blinkHandle);
-  xTaskCreate(hostTask, "hostTask", 2048, nullptr, 1, &hostHandle);
+  xTaskCreate(hostTask, "hostTask", 2048, nullptr, 4, &hostHandle);
   xTaskCreate(terminalTask, "terminalTask", 4096, nullptr, 1, &terminalHandle);
 }
 

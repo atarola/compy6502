@@ -60,6 +60,10 @@ void enterSendStatus() {
   uint8_t status = 0;
   status |= kbdHasData() ? StatusFlags::STATUS_KBD_READY : 0;
 
+  if (status != 0x00) {
+    logMessage("enterSendStatus: kbdHasData=%d status=%02X", kbdHasData(), status);
+  }
+
   txByte = status;
 }
 
@@ -74,6 +78,8 @@ void enterSendChar() {
   if (!kbdNextByte(&txByte, 0)) {
     txByte = 0;
   }
+
+  logMessage("enterSendChar: txByte=%02X", txByte);
 }
 
 void handleSendChar() {
@@ -136,8 +142,19 @@ void processByte() {
 }
 
 void hostTask(void *parameter) {
+  while (!spi_is_writable(spi0));
+  spi_get_hw(spi0)->dr = txByte;
+
   for (;;) {
-    spi_write_read_blocking(spi0, &txByte, &rxByte, 1);
+    while (!spi_is_readable(spi0));
+    rxByte = spi_get_hw(spi0)->dr;
+
     processByte();
+
+    while (!spi_is_writable(spi0));
+    if (!(rxByte == 0x00 && txByte == 0x00) && !(rxByte == 0x01 && txByte == 0x00)) {
+      logMessage("host: rx=%02X tx=%02X", rxByte, txByte);
+    }
+    spi_get_hw(spi0)->dr = txByte;
   }
 }

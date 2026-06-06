@@ -56,7 +56,7 @@ void kbdTask(void *parameter) {
 }
 
 bool kbdHasData() {
-  return uxQueueMessagesWaiting(kbdQueue) == 0;
+  return uxQueueMessagesWaiting(kbdQueue) != 0;
 }
 
 bool kbdNextByte(uint8_t *byte, TickType_t wait) {
