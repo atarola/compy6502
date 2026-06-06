@@ -29,20 +29,16 @@ enum ActiveHandle {
     Graphics(GraphicsHandle),
 }
 
-pub struct HostTask;
-
-impl HostTask {
-    pub async fn new(
-        spawner: &Spawner,
-        spi: SPI0,
-        miso: PIN_0,
-        sck: PIN_2,
-        mosi: PIN_3,
-        cs: PIN_1,
-        text: TextHandle,
-        graphics: GraphicsHandle,
-    ) -> HostTask { todo!() }
-}
+pub async fn host_init(
+    spawner: &Spawner,
+    spi: SPI0,
+    miso: PIN_0,
+    sck: PIN_2,
+    mosi: PIN_3,
+    cs: PIN_1,
+    text: TextHandle,
+    graphics: GraphicsHandle,
+) { todo!() }
 
 #[embassy_executor::task]
 async fn host_task(

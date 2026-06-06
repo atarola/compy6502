@@ -1,54 +1,180 @@
+use embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::Output;
-use embassy_rp::peripherals::{DMA_CH0, DMA_CH1, PIN_6, PIN_8, PIN_9, PIN_14, PIN_15, SPI1};
+use embassy_rp::peripherals::SPI1;
 use embassy_rp::spi::{Async, Spi};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::channel::{Channel, Sender};
+use embassy_sync::channel::Channel;
+use embedded_hal_async::spi::{Operation, SpiDevice};
+use heapless::Vec;
+
+use DisplayCmd::{BeginBulk, BulkByte, Cmd, EndBulk, Write8, Write16, Write32};
+
+type EveSpiDevice = SpiDeviceWithConfig<
+    'static,
+    CriticalSectionRawMutex,
+    Spi<'static, SPI1, Async>,
+    Output<'static>,
+>;
 
 static DISPLAY_CHANNEL: Channel<CriticalSectionRawMutex, DisplayCmd, 32> = Channel::new();
 
-type DisplaySender = Sender<'static, CriticalSectionRawMutex, DisplayCmd, 32>;
-
 pub enum DisplayCmd {
+    BeginBulk(u32),
+    BulkByte(u8),
+    EndBulk,
     Cmd(u8),
     Write8(u32, u8),
     Write16(u32, u16),
     Write32(u32, u32),
 }
 
-pub struct EveDriver(DisplaySender);
+pub struct DisplayDriver;
 
-impl EveDriver {
-    pub async fn cmd(&self, cmd: u8) { todo!() }
-    pub async fn write8(&self, addr: u32, data: u8) { todo!() }
-    pub async fn write16(&self, addr: u32, data: u16) { todo!() }
-    pub async fn write32(&self, addr: u32, data: u32) { todo!() }
+impl DisplayDriver {
+    pub fn new() -> DisplayDriver {
+        DisplayDriver
+    }
+
+    pub async fn cmd(&self, cmd: u8) {
+        DISPLAY_CHANNEL.send(Cmd(cmd)).await;
+    }
+
+    pub async fn write8(&self, addr: u32, data: u8) {
+        DISPLAY_CHANNEL.send(Write8(addr, data)).await;
+    }
+
+    pub async fn write16(&self, addr: u32, data: u16) {
+        DISPLAY_CHANNEL.send(Write16(addr, data)).await;
+    }
+
+    pub async fn write32(&self, addr: u32, data: u32) {
+        DISPLAY_CHANNEL.send(Write32(addr, data)).await;
+    }
+
+    pub async fn begin_bulk(&self, addr: u32) {
+        DISPLAY_CHANNEL.send(BeginBulk(addr)).await;
+    }
+
+    pub async fn bulk_byte(&self, b: u8) {
+        DISPLAY_CHANNEL.send(BulkByte(b)).await;
+    }
+
+    pub async fn end_bulk(&self) {
+        DISPLAY_CHANNEL.send(EndBulk).await;
+    }
 }
 
 pub async fn display_init(
     spawner: &Spawner,
-    spi: SPI1,
-    sck: PIN_14,
-    mosi: PIN_15,
-    miso: PIN_8,
-    tx_dma: DMA_CH0,
-    rx_dma: DMA_CH1,
-    cs: PIN_9,
-    pd: PIN_6,
-) -> EveDriver { todo!() }
+    mut device: EveSpiDevice,
+    mut pd: Output<'static>,
+) -> DisplayDriver {
+    eve_init(&mut device, &mut pd).await;
+    spawner.spawn(display_task(device, pd)).unwrap();
+    DisplayDriver::new()
+}
+
+async fn eve_init(device: &mut EveSpiDevice, pd: &mut Output<'static>) {
+    todo!()
+}
 
 #[embassy_executor::task]
-async fn display_task(
-    mut spi: Spi<'static, SPI1, Async>,
-    mut cs: Output<'static>,
-    mut pd: Output<'static>,
-) { todo!() }
+async fn display_task(mut device: EveSpiDevice, mut pd: Output<'static>) {
+    let receiver = DISPLAY_CHANNEL.receiver();
+    let mut bulk_addr: Option<u32> = None;
+    let mut bulk_buf: Vec<u8, 4096> = Vec::new();
 
-fn encode_addr(buf: &mut [u8], addr: u32, write: bool) { todo!() }
-fn encode_data(buf: &mut [u8], data: u32, len: usize) { todo!() }
+    loop {
+        match receiver.receive().await {
+            DisplayCmd::BeginBulk(addr) => handle_begin_bulk(addr, &mut bulk_addr, &mut bulk_buf),
+            DisplayCmd::BulkByte(b) => handle_bulk_byte(b, &mut bulk_buf),
+            DisplayCmd::EndBulk => {
+                handle_end_bulk(&mut device, &mut bulk_addr, &mut bulk_buf).await
+            }
+            DisplayCmd::Cmd(cmd) => exec_cmd(&mut device, cmd).await,
+            DisplayCmd::Write8(addr, data) => exec_write8(&mut device, addr, data).await,
+            DisplayCmd::Write16(addr, data) => exec_write16(&mut device, addr, data).await,
+            DisplayCmd::Write32(addr, data) => exec_write32(&mut device, addr, data).await,
+        }
+    }
+}
 
-async fn eve_init(
-    spi: &mut Spi<'static, SPI1, Async>,
-    cs: &mut Output<'static>,
-    pd: &mut Output<'static>,
-) { todo!() }
+fn handle_begin_bulk(addr: u32, bulk_addr: &mut Option<u32>, bulk_buf: &mut Vec<u8, 4096>) {
+    *bulk_addr = Some(addr);
+    bulk_buf.clear();
+}
+
+fn handle_bulk_byte(b: u8, bulk_buf: &mut Vec<u8, 4096>) {
+    let _ = bulk_buf.push(b);
+}
+
+async fn handle_end_bulk(
+    device: &mut EveSpiDevice,
+    bulk_addr: &mut Option<u32>,
+    bulk_buf: &mut Vec<u8, 4096>,
+) {
+    if let Some(addr) = bulk_addr.take() {
+        exec_bulk(device, addr, bulk_buf).await;
+        bulk_buf.clear();
+    }
+}
+
+async fn exec_bulk(device: &mut EveSpiDevice, addr: u32, data: &[u8]) {
+    let mut hdr = [0u8; 3];
+    encode_addr(&mut hdr, addr, true);
+    device
+        .transaction(&mut [Operation::Write(&hdr), Operation::Write(data)])
+        .await
+        .unwrap();
+}
+
+async fn exec_cmd(device: &mut EveSpiDevice, cmd: u8) {
+    let tx = [cmd, 0x00, 0x00];
+    device
+        .transaction(&mut [Operation::Write(&tx)])
+        .await
+        .unwrap();
+}
+
+async fn exec_write8(device: &mut EveSpiDevice, addr: u32, data: u8) {
+    let mut tx = [0u8; 4];
+    encode_addr(&mut tx, addr, true);
+    encode_data(&mut tx[3..], data as u32, 1);
+    device
+        .transaction(&mut [Operation::Write(&tx)])
+        .await
+        .unwrap();
+}
+
+async fn exec_write16(device: &mut EveSpiDevice, addr: u32, data: u16) {
+    let mut tx = [0u8; 5];
+    encode_addr(&mut tx, addr, true);
+    encode_data(&mut tx[3..], data as u32, 2);
+    device
+        .transaction(&mut [Operation::Write(&tx)])
+        .await
+        .unwrap();
+}
+
+async fn exec_write32(device: &mut EveSpiDevice, addr: u32, data: u32) {
+    let mut tx = [0u8; 7];
+    encode_addr(&mut tx, addr, true);
+    encode_data(&mut tx[3..], data, 4);
+    device
+        .transaction(&mut [Operation::Write(&tx)])
+        .await
+        .unwrap();
+}
+
+fn encode_addr(buf: &mut [u8], addr: u32, write: bool) {
+    buf[0] = ((addr >> 16) & 0x3F | if write { 0x80 } else { 0x00 }) as u8;
+    buf[1] = ((addr >> 8) & 0xFF) as u8;
+    buf[2] = ((addr >> 0) & 0xFF) as u8;
+}
+
+fn encode_data(buf: &mut [u8], data: u32, len: usize) {
+    for i in 1..len {
+        buf[i] = ((data >> (i * 8)) & 0xFF) as u8;
+    }
+}
