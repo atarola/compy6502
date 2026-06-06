@@ -71,7 +71,7 @@ pub async fn display_init(
     mut pd: Output<'static>,
 ) -> DisplayDriver {
     eve_init(&mut device, &mut pd).await;
-    spawner.spawn(display_task(device, pd)).unwrap();
+    spawner.spawn(display_task(device)).unwrap();
     DisplayDriver::new()
 }
 
@@ -80,7 +80,7 @@ async fn eve_init(device: &mut EveSpiDevice, pd: &mut Output<'static>) {
 }
 
 #[embassy_executor::task]
-async fn display_task(mut device: EveSpiDevice, mut pd: Output<'static>) {
+async fn display_task(mut device: EveSpiDevice) {
     let receiver = DISPLAY_CHANNEL.receiver();
     let mut bulk_addr: Option<u32> = None;
     let mut bulk_buf: Vec<u8, 4096> = Vec::new();
