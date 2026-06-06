@@ -1,6 +1,12 @@
 #![no_std]
 #![no_main]
 
+mod display;
+mod eve;
+mod graphics;
+mod host;
+mod text;
+
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_rp::gpio;
