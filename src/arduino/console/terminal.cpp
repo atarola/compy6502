@@ -281,7 +281,8 @@ static void terminalPutCharacter(uint8_t *ch) {
 
   if (cursor_col == TERM_COLS) {
     cursor_col = 0;
-    if (cursor_row == TERM_ROWS) {
+    if (cursor_row >= TERM_ROWS - 1) {
+      cursor_row = TERM_ROWS - 1;
       memmove(screen[0], screen[1], sizeof(screen) - sizeof(screen[0]));
       terminalRowClear();
     } else {

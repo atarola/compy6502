@@ -47,6 +47,11 @@ void hostInit() {
   spi_init(spi0, 1000000);
   spi_set_format(spi0, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
   spi_set_slave(spi0, true);
+
+  gpio_set_function(SPI0_MISO_PIN, GPIO_FUNC_SPI);
+  gpio_set_function(SPI0_MOSI_PIN, GPIO_FUNC_SPI);
+  gpio_set_function(SPI0_SCK_PIN,  GPIO_FUNC_SPI);
+  gpio_set_function(SPI0_CS,       GPIO_FUNC_SPI);
 }
 
 void enterSendStatus() {
@@ -132,15 +137,7 @@ void processByte() {
 
 void hostTask(void *parameter) {
   for (;;) {
-    // grab the next keyboard keycode, and offer it to the 6502
-    // spi_write_read_blocking(spi1, &txByte, &rxByte, 1);
-    // processByte();
-    if (kbdNextByte(&txByte, 0)) {
-      logMessage("host: %c", txByte);
-      terminalReceiveChar(&txByte);
-      txByte = 0;
-    }
-
-    delay(100);
+    spi_write_read_blocking(spi0, &txByte, &rxByte, 1);
+    processByte();
   }
 }
