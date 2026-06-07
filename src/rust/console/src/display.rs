@@ -32,11 +32,11 @@ pub enum DisplayCmd {
     Write32(u32, u32),
 }
 
-pub struct DisplayDriver;
+pub struct DisplayHandle;
 
-impl DisplayDriver {
-    pub fn new() -> DisplayDriver {
-        DisplayDriver
+impl DisplayHandle {
+    pub fn new() -> DisplayHandle {
+        DisplayHandle
     }
 
     pub async fn cmd(&self, cmd: u8) {
@@ -72,10 +72,10 @@ pub async fn display_init(
     spawner: &Spawner,
     mut device: EveSpiDevice,
     mut pd: Output<'static>,
-) -> DisplayDriver {
+) -> DisplayHandle {
     eve_init(&mut device, &mut pd).await;
     spawner.spawn(display_task(device)).unwrap();
-    DisplayDriver::new()
+    DisplayHandle::new()
 }
 
 fn handle_begin_bulk(addr: u32, bulk_addr: &mut Option<u32>, bulk_buf: &mut Vec<u8, 4096>) {

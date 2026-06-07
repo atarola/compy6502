@@ -46,16 +46,15 @@ async fn main(spawner: Spawner) {
 
     let mut led = Output::new(p.PIN_13, Level::Low);
 
-    let d = display::display_init(&spawner, eve_device, eve_pd).await;
-    let t = text::text_init(&spawner, d).await;
-
-    let chars = b"abcdefg";
-    let mut idx = 0usize;
+    display::display_init(&spawner, eve_device, eve_pd).await;
+    text::text_init(&spawner, display::DisplayHandle::new()).await;
+    host::host_init(
+        p.CORE1,
+        text::TextHandle::new(),
+        graphics::GraphicsHandle::new(),
+    );
 
     loop {
-        t.put_char(chars[idx]).await;
-        idx = (idx + 1) % chars.len();
-
         led.set_high();
         Timer::after_millis(500).await;
         led.set_low();

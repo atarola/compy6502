@@ -3,7 +3,7 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
 use heapless::Vec;
 
-use crate::display::DisplayDriver;
+use crate::display::DisplayHandle;
 use crate::text::AnsiCmd::{Backspace, Newline, PutChar};
 use crate::text::AnsiState::{Escape, Normal, Sequence};
 
@@ -439,13 +439,13 @@ impl TextState {
     }
 }
 
-pub async fn text_init(spawner: &Spawner, driver: DisplayDriver) -> TextHandle {
+pub async fn text_init(spawner: &Spawner, driver: DisplayHandle) -> TextHandle {
     spawner.spawn(text_task(driver)).unwrap();
     TextHandle::new()
 }
 
 #[embassy_executor::task]
-async fn text_task(mut driver: DisplayDriver) {
+async fn text_task(mut driver: DisplayHandle) {
     use embassy_futures::select::{Either3, select3};
     use embassy_time::Ticker;
 
@@ -476,7 +476,7 @@ async fn text_task(mut driver: DisplayDriver) {
     }
 }
 
-async fn push_state(state: &TextState, driver: &mut DisplayDriver) {
+async fn push_state(state: &TextState, driver: &mut DisplayHandle) {
     use crate::eve::EVE_RAM_G;
     driver.begin_bulk(EVE_RAM_G).await;
     for (r, row) in state.grid.iter().enumerate() {
@@ -496,19 +496,51 @@ async fn push_state(state: &TextState, driver: &mut DisplayDriver) {
     driver.end_bulk().await;
 }
 
-async fn render(_state: &TextState, driver: &mut DisplayDriver) {
+async fn render(_state: &TextState, driver: &mut DisplayHandle) {
     use crate::eve::*;
     let mut i = 0u32;
-    driver.write32(EVE_RAM_DL + i * 4, DL_CLEAR_RGB).await; i += 1;
-    driver.write32(EVE_RAM_DL + i * 4, clear(1, 1, 1)).await; i += 1;
-    driver.write32(EVE_RAM_DL + i * 4, bitmap_source(EVE_RAM_G)).await; i += 1;
-    driver.write32(EVE_RAM_DL + i * 4, bitmap_handle(15)).await; i += 1;
-    driver.write32(EVE_RAM_DL + i * 4, bitmap_layout(EVE_TEXTVGA, (COLS * 2) as u32, ROWS as u32)).await; i += 1;
-    driver.write32(EVE_RAM_DL + i * 4, bitmap_size(EVE_NEAREST, EVE_BORDER, EVE_BORDER, (COLS * 8) as u32, (ROWS * 16) as u32)).await; i += 1;
-    driver.write32(EVE_RAM_DL + i * 4, blend_func(EVE_ONE, EVE_ZERO)).await; i += 1;
-    driver.write32(EVE_RAM_DL + i * 4, begin(EVE_BITMAPS)).await; i += 1;
-    driver.write32(EVE_RAM_DL + i * 4, vertex2f(8 * 16, 0)).await; i += 1;
-    driver.write32(EVE_RAM_DL + i * 4, end()).await; i += 1;
+    driver.write32(EVE_RAM_DL + i * 4, DL_CLEAR_RGB).await;
+    i += 1;
+    driver.write32(EVE_RAM_DL + i * 4, clear(1, 1, 1)).await;
+    i += 1;
+    driver
+        .write32(EVE_RAM_DL + i * 4, bitmap_source(EVE_RAM_G))
+        .await;
+    i += 1;
+    driver.write32(EVE_RAM_DL + i * 4, bitmap_handle(15)).await;
+    i += 1;
+    driver
+        .write32(
+            EVE_RAM_DL + i * 4,
+            bitmap_layout(EVE_TEXTVGA, (COLS * 2) as u32, ROWS as u32),
+        )
+        .await;
+    i += 1;
+    driver
+        .write32(
+            EVE_RAM_DL + i * 4,
+            bitmap_size(
+                EVE_NEAREST,
+                EVE_BORDER,
+                EVE_BORDER,
+                (COLS * 8) as u32,
+                (ROWS * 16) as u32,
+            ),
+        )
+        .await;
+    i += 1;
+    driver
+        .write32(EVE_RAM_DL + i * 4, blend_func(EVE_ONE, EVE_ZERO))
+        .await;
+    i += 1;
+    driver.write32(EVE_RAM_DL + i * 4, begin(EVE_BITMAPS)).await;
+    i += 1;
+    driver
+        .write32(EVE_RAM_DL + i * 4, vertex2f(8 * 16, 0))
+        .await;
+    i += 1;
+    driver.write32(EVE_RAM_DL + i * 4, end()).await;
+    i += 1;
     driver.write32(EVE_RAM_DL + i * 4, DL_DISPLAY).await;
     driver.write8(REG_DLSWAP, EVE_DLSWAP_FRAME).await;
 }

@@ -1,14 +1,21 @@
-use crate::display::DisplayDriver;
+use crate::display::DisplayHandle;
 
 pub struct GraphicsHandle;
-pub struct GraphicsState;
 
 impl GraphicsHandle {
-    pub fn new() -> GraphicsHandle { GraphicsHandle }
+    pub fn new() -> GraphicsHandle {
+        GraphicsHandle
+    }
 }
 
-pub async fn graphics_init() -> GraphicsHandle { todo!() }
+pub struct GraphicsState;
 
 impl GraphicsState {
-    pub async fn render(&self, driver: &mut DisplayDriver) { todo!() }
+    pub async fn render(&self, driver: &mut DisplayHandle) {
+        todo!()
+    }
+}
+
+pub async fn graphics_init() -> GraphicsHandle {
+    todo!()
 }

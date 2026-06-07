@@ -12,62 +12,14 @@ PUT_CHAR = $21
   jsr SPI_CONFIGURE
 
 loop:
-  jsr console_status
-  bne :+
-  jsr delay
-  jmp loop
-:
+  jsr ACIA_GETC
 
-  lda #'.'
-  jsr ACIA_PUTC
-
-  jsr console_get_character
-  pha
-  jsr BYTE_TO_HEX
   pha
   jsr ACIA_PUTC
   pla
-  txa
-  jsr ACIA_PUTC
-  pla
+  
   jsr console_set_character
-
-  jsr delay
   jmp loop
-
-console_status:
-  jsr SPI_SELECT
-  lda #READ_STATUS
-  jsr SPI_WRITE
-  jsr SPI_DESELECT
-  
-  jsr delay
-  
-  jsr SPI_SELECT
-  lda #$00
-  jsr SPI_TRANSFER
-  pha
-  jsr SPI_DESELECT
-  pla
-  rts
-
-console_get_character:
-  jsr SPI_SELECT
-  lda #GET_CHAR
-  jsr SPI_WRITE
-  jsr SPI_DESELECT
-
-  jsr delay
-  jsr delay
-  jsr delay
-
-  jsr SPI_SELECT
-  lda #$00
-  jsr SPI_TRANSFER
-  pha
-  jsr SPI_DESELECT
-  pla
-  rts
 
 console_set_character:
   pha
