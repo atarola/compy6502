@@ -99,7 +99,7 @@ impl AnsiParser {
                 None
             }
             0x0D | 0x0A => Some(Newline),
-            0x08 => Some(Backspace),
+            0x08 | 0x7F => Some(Backspace),
             _ => Some(PutChar(c)),
         }
     }

@@ -9,14 +9,12 @@ PUT_CHAR = $21
   ora #SPI_CS_SEL3
   jsr SPI_CONFIGURE
 
-  lda #'!'
 loop:
+  jsr ACIA_GETC
+  pha
+  jsr ACIA_PUTC
+  pla
   jsr console_put
-  clc
-  adc #1
-  cmp #'~' + 1
-  bcc loop
-  lda #'!'
   jmp loop
 
 console_put:
@@ -25,7 +23,6 @@ console_put:
   lda #PUT_CHAR
   jsr SPI_WRITE
   jsr SPI_DESELECT
-  
   jsr SPI_SELECT
   pla
   jsr SPI_WRITE
