@@ -47,18 +47,18 @@ async fn main(spawner: Spawner) {
     let mut led = Output::new(p.PIN_13, Level::Low);
 
     let d = display::display_init(&spawner, eve_device, eve_pd).await;
-    d.write32(EVE_RAM_DL, clear_color_rgb(0, 0, 255)).await;
-    d.write32(EVE_RAM_DL + 4, clear(1, 1, 1)).await;
-    d.write32(EVE_RAM_DL + 8, DL_DISPLAY).await;
-    d.write8(REG_DLSWAP, EVE_DLSWAP_FRAME).await;
+    let t = text::text_init(&spawner, d).await;
+
+    let chars = b"abcdefg";
+    let mut idx = 0usize;
 
     loop {
-        info!("led on!");
-        led.set_high();
-        Timer::after_secs(1).await;
+        t.put_char(chars[idx]).await;
+        idx = (idx + 1) % chars.len();
 
-        info!("led off!");
+        led.set_high();
+        Timer::after_millis(500).await;
         led.set_low();
-        Timer::after_secs(1).await;
+        Timer::after_millis(500).await;
     }
 }
