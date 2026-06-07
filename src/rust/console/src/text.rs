@@ -32,7 +32,7 @@ const ANSI_TO_TEXTVGA: [u8; 16] = [
     0x0F, // 15 - bright white
 ];
 
-static TEXT_CHANNEL: Channel<CriticalSectionRawMutex, u8, 32> = Channel::new();
+static TEXT_CHANNEL: Channel<CriticalSectionRawMutex, u8, 256> = Channel::new();
 
 #[derive(Clone, Copy)]
 struct Cell {

@@ -20,7 +20,7 @@ type EveSpiDevice = SpiDeviceWithConfig<
     Output<'static>,
 >;
 
-static DISPLAY_CHANNEL: Channel<CriticalSectionRawMutex, DisplayCmd, 32> = Channel::new();
+static DISPLAY_CHANNEL: Channel<CriticalSectionRawMutex, DisplayCmd, 1024> = Channel::new();
 
 pub enum DisplayCmd {
     BeginBulk(u32),

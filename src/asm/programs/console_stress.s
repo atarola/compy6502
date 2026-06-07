@@ -11,7 +11,9 @@ PUT_CHAR = $21
 
   lda #'!'
 loop:
+  pha
   jsr console_put
+  pla
   clc
   adc #1
   cmp #'~' + 1
@@ -25,7 +27,6 @@ console_put:
   lda #PUT_CHAR
   jsr SPI_WRITE
   jsr SPI_DESELECT
-  
   jsr SPI_SELECT
   pla
   jsr SPI_WRITE
