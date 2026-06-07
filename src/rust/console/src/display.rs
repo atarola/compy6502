@@ -5,10 +5,13 @@ use embassy_rp::peripherals::SPI1;
 use embassy_rp::spi::{Async, Spi};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
+use embassy_time::Timer;
 use embedded_hal_async::spi::{Operation, SpiDevice};
 use heapless::Vec;
 
 use DisplayCmd::{BeginBulk, BulkByte, Cmd, EndBulk, Write8, Write16, Write32};
+
+use crate::eve::*;
 
 type EveSpiDevice = SpiDeviceWithConfig<
     'static,
@@ -73,31 +76,6 @@ pub async fn display_init(
     eve_init(&mut device, &mut pd).await;
     spawner.spawn(display_task(device)).unwrap();
     DisplayDriver::new()
-}
-
-async fn eve_init(device: &mut EveSpiDevice, pd: &mut Output<'static>) {
-    todo!()
-}
-
-#[embassy_executor::task]
-async fn display_task(mut device: EveSpiDevice) {
-    let receiver = DISPLAY_CHANNEL.receiver();
-    let mut bulk_addr: Option<u32> = None;
-    let mut bulk_buf: Vec<u8, 4096> = Vec::new();
-
-    loop {
-        match receiver.receive().await {
-            DisplayCmd::BeginBulk(addr) => handle_begin_bulk(addr, &mut bulk_addr, &mut bulk_buf),
-            DisplayCmd::BulkByte(b) => handle_bulk_byte(b, &mut bulk_buf),
-            DisplayCmd::EndBulk => {
-                handle_end_bulk(&mut device, &mut bulk_addr, &mut bulk_buf).await
-            }
-            DisplayCmd::Cmd(cmd) => exec_cmd(&mut device, cmd).await,
-            DisplayCmd::Write8(addr, data) => exec_write8(&mut device, addr, data).await,
-            DisplayCmd::Write16(addr, data) => exec_write16(&mut device, addr, data).await,
-            DisplayCmd::Write32(addr, data) => exec_write32(&mut device, addr, data).await,
-        }
-    }
 }
 
 fn handle_begin_bulk(addr: u32, bulk_addr: &mut Option<u32>, bulk_buf: &mut Vec<u8, 4096>) {
@@ -167,6 +145,17 @@ async fn exec_write32(device: &mut EveSpiDevice, addr: u32, data: u32) {
         .unwrap();
 }
 
+async fn exec_read8(device: &mut EveSpiDevice, addr: u32) -> u8 {
+    let mut tx = [0u8; 5];
+    let mut rx = [0u8; 5];
+    encode_addr(&mut tx, addr, false);
+    device
+        .transaction(&mut [Operation::Transfer(&mut rx, &tx)])
+        .await
+        .unwrap();
+    rx[4]
+}
+
 fn encode_addr(buf: &mut [u8], addr: u32, write: bool) {
     buf[0] = ((addr >> 16) & 0x3F | if write { 0x80 } else { 0x00 }) as u8;
     buf[1] = ((addr >> 8) & 0xFF) as u8;
@@ -174,7 +163,96 @@ fn encode_addr(buf: &mut [u8], addr: u32, write: bool) {
 }
 
 fn encode_data(buf: &mut [u8], data: u32, len: usize) {
-    for i in 1..len {
+    for i in 0..len {
         buf[i] = ((data >> (i * 8)) & 0xFF) as u8;
+    }
+}
+
+async fn eve_init(device: &mut EveSpiDevice, pd: &mut Output<'static>) {
+    // power cycle the screen
+    pd.set_low();
+    Timer::after_millis(6).await;
+    pd.set_high();
+    Timer::after_millis(21).await;
+
+    // set the clock and boot up eve chip
+    exec_cmd(device, EVE_CLKEXT).await;
+    exec_cmd(device, EVE_ACTIVE).await;
+    Timer::after_millis(21).await;
+
+    // wait till the chip starts to respond
+    while exec_read8(device, REG_ID).await != 0x7C {
+        Timer::after_millis(1).await;
+    }
+
+    // wait for reset completion
+    while exec_read8(device, REG_CPURESET).await & 0x03 != 0x00 {
+        Timer::after_millis(1).await;
+    }
+
+    // backlight off
+    exec_write8(device, REG_PWM_DUTY, 0).await;
+
+    // display timing
+    exec_write16(device, REG_HSIZE, EVE_HSIZE).await;
+    exec_write16(device, REG_HCYCLE, EVE_HCYCLE).await;
+    exec_write16(device, REG_HOFFSET, EVE_HOFFSET).await;
+    exec_write16(device, REG_HSYNC0, EVE_HSYNC0).await;
+    exec_write16(device, REG_HSYNC1, EVE_HSYNC1).await;
+    exec_write16(device, REG_VSIZE, EVE_VSIZE).await;
+    exec_write16(device, REG_VCYCLE, EVE_VCYCLE).await;
+    exec_write16(device, REG_VOFFSET, EVE_VOFFSET).await;
+    exec_write16(device, REG_VSYNC0, EVE_VSYNC0).await;
+    exec_write16(device, REG_VSYNC1, EVE_VSYNC1).await;
+    exec_write8(device, REG_SWIZZLE, EVE_SWIZZLE).await;
+    exec_write8(device, REG_PCLK_POL, EVE_PCLKPOL).await;
+    exec_write8(device, REG_CSPREAD, EVE_CSPREAD).await;
+
+    // touch
+    exec_write8(device, REG_TOUCH_MODE, EVE_TMODE_CONTINUOUS).await;
+    exec_write16(device, REG_TOUCH_RZTHRESH, EVE_TOUCH_RZTHRESH).await;
+
+    // audio off
+    exec_write8(device, REG_VOL_PB, 0x00).await;
+    exec_write8(device, REG_VOL_SOUND, 0x00).await;
+    exec_write16(device, REG_SOUND, 0x6000).await;
+
+    // basic display list
+    exec_write32(device, EVE_RAM_DL, DL_CLEAR_RGB).await;
+    exec_write32(device, EVE_RAM_DL + 4, clear(1, 1, 1)).await;
+    exec_write32(device, EVE_RAM_DL + 8, DL_DISPLAY).await;
+    exec_write8(device, REG_DLSWAP, EVE_DLSWAP_FRAME).await;
+
+    // enable display and pixel clock
+    exec_write8(device, REG_GPIO, 0x80).await;
+    exec_write8(device, REG_PCLK, EVE_PCLK).await;
+
+    // backlight on at 25%
+    exec_write8(device, REG_PWM_DUTY, 0x50).await;
+
+    // wait for coprocessor
+    while exec_read8(device, REG_CPURESET).await != 0x00 {
+        Timer::after_millis(1).await;
+    }
+}
+
+#[embassy_executor::task]
+async fn display_task(mut device: EveSpiDevice) {
+    let receiver = DISPLAY_CHANNEL.receiver();
+    let mut bulk_addr: Option<u32> = None;
+    let mut bulk_buf: Vec<u8, 4096> = Vec::new();
+
+    loop {
+        match receiver.receive().await {
+            DisplayCmd::BeginBulk(addr) => handle_begin_bulk(addr, &mut bulk_addr, &mut bulk_buf),
+            DisplayCmd::BulkByte(b) => handle_bulk_byte(b, &mut bulk_buf),
+            DisplayCmd::EndBulk => {
+                handle_end_bulk(&mut device, &mut bulk_addr, &mut bulk_buf).await
+            }
+            DisplayCmd::Cmd(cmd) => exec_cmd(&mut device, cmd).await,
+            DisplayCmd::Write8(addr, data) => exec_write8(&mut device, addr, data).await,
+            DisplayCmd::Write16(addr, data) => exec_write16(&mut device, addr, data).await,
+            DisplayCmd::Write32(addr, data) => exec_write32(&mut device, addr, data).await,
+        }
     }
 }

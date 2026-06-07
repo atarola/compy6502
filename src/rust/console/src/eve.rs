@@ -64,25 +64,25 @@ pub const EVE_DECR: u32 = 4;
 pub const EVE_INVERT: u32 = 5;
 
 // Display list swap
-pub const EVE_DLSWAP_DONE: u32 = 0;
-pub const EVE_DLSWAP_LINE: u32 = 1;
-pub const EVE_DLSWAP_FRAME: u32 = 2;
+pub const EVE_DLSWAP_DONE: u8 = 0;
+pub const EVE_DLSWAP_LINE: u8 = 1;
+pub const EVE_DLSWAP_FRAME: u8 = 2;
 
 // Interrupt bits
-pub const EVE_INT_SWAP: u32 = 0x01;
-pub const EVE_INT_TOUCH: u32 = 0x02;
-pub const EVE_INT_TAG: u32 = 0x04;
-pub const EVE_INT_SOUND: u32 = 0x08;
-pub const EVE_INT_PLAYBACK: u32 = 0x10;
-pub const EVE_INT_CMDEMPTY: u32 = 0x20;
-pub const EVE_INT_CMDFLAG: u32 = 0x40;
-pub const EVE_INT_CONVCOMPLETE: u32 = 0x80;
+pub const EVE_INT_SWAP: u8 = 0x01;
+pub const EVE_INT_TOUCH: u8 = 0x02;
+pub const EVE_INT_TAG: u8 = 0x04;
+pub const EVE_INT_SOUND: u8 = 0x08;
+pub const EVE_INT_PLAYBACK: u8 = 0x10;
+pub const EVE_INT_CMDEMPTY: u8 = 0x20;
+pub const EVE_INT_CMDFLAG: u8 = 0x40;
+pub const EVE_INT_CONVCOMPLETE: u8 = 0x80;
 
 // Touch mode
-pub const EVE_TMODE_OFF: u32 = 0;
-pub const EVE_TMODE_ONESHOT: u32 = 1;
-pub const EVE_TMODE_FRAME: u32 = 2;
-pub const EVE_TMODE_CONTINUOUS: u32 = 3;
+pub const EVE_TMODE_OFF: u8 = 0;
+pub const EVE_TMODE_ONESHOT: u8 = 1;
+pub const EVE_TMODE_FRAME: u8 = 2;
+pub const EVE_TMODE_CONTINUOUS: u8 = 3;
 
 // Alpha blending
 pub const EVE_ZERO: u32 = 0;
@@ -104,20 +104,20 @@ pub const EVE_EDGE_STRIP_B: u32 = 8;
 pub const EVE_RECTS: u32 = 9;
 
 // Widget options
-pub const EVE_OPT_MONO: u32 = 1;
-pub const EVE_OPT_NODL: u32 = 2;
-pub const EVE_OPT_FLAT: u32 = 256;
-pub const EVE_OPT_CENTERX: u32 = 512;
-pub const EVE_OPT_CENTERY: u32 = 1024;
-pub const EVE_OPT_CENTER: u32 = EVE_OPT_CENTERX | EVE_OPT_CENTERY;
-pub const EVE_OPT_NOBACK: u32 = 4096;
-pub const EVE_OPT_NOTICKS: u32 = 8192;
-pub const EVE_OPT_NOHM: u32 = 16384;
-pub const EVE_OPT_NOPOINTER: u32 = 16384;
-pub const EVE_OPT_NOSECS: u32 = 32768;
-pub const EVE_OPT_NOHANDS: u32 = 49152;
-pub const EVE_OPT_RIGHTX: u32 = 2048;
-pub const EVE_OPT_SIGNED: u32 = 256;
+pub const EVE_OPT_MONO: u16 = 1;
+pub const EVE_OPT_NODL: u16 = 2;
+pub const EVE_OPT_FLAT: u16 = 256;
+pub const EVE_OPT_CENTERX: u16 = 512;
+pub const EVE_OPT_CENTERY: u16 = 1024;
+pub const EVE_OPT_CENTER: u16 = EVE_OPT_CENTERX | EVE_OPT_CENTERY;
+pub const EVE_OPT_NOBACK: u16 = 4096;
+pub const EVE_OPT_NOTICKS: u16 = 8192;
+pub const EVE_OPT_NOHM: u16 = 16384;
+pub const EVE_OPT_NOPOINTER: u16 = 16384;
+pub const EVE_OPT_NOSECS: u16 = 32768;
+pub const EVE_OPT_NOHANDS: u16 = 49152;
+pub const EVE_OPT_RIGHTX: u16 = 2048;
+pub const EVE_OPT_SIGNED: u16 = 256;
 
 // Font defines
 pub const EVE_NUMCHAR_PERFONT: u32 = 128;
@@ -125,9 +125,9 @@ pub const EVE_FONT_TABLE_SIZE: u32 = 148;
 pub const EVE_FONT_TABLE_POINTER: u32 = 0xFFFFC;
 
 // Audio sample types
-pub const EVE_LINEAR_SAMPLES: u32 = 0;
-pub const EVE_ULAW_SAMPLES: u32 = 1;
-pub const EVE_ADPCM_SAMPLES: u32 = 2;
+pub const EVE_LINEAR_SAMPLES: u8 = 0;
+pub const EVE_ULAW_SAMPLES: u8 = 1;
+pub const EVE_ADPCM_SAMPLES: u8 = 2;
 
 // Synthesized sound
 pub const EVE_SILENCE: u8 = 0x00;
@@ -255,13 +255,13 @@ pub const EVE_MIDI_B7: u8 = 107;
 pub const EVE_MIDI_C8: u8 = 108;
 
 // GPIO bits
-pub const EVE_GPIO0: u32 = 0;
-pub const EVE_GPIO1: u32 = 1;
-pub const EVE_GPIO7: u32 = 7;
+pub const EVE_GPIO0: u8 = 0;
+pub const EVE_GPIO1: u8 = 1;
+pub const EVE_GPIO7: u8 = 7;
 
 // Display rotation
-pub const EVE_DISPLAY_0: u32 = 0;
-pub const EVE_DISPLAY_180: u32 = 1;
+pub const EVE_DISPLAY_0: u8 = 0;
+pub const EVE_DISPLAY_180: u8 = 1;
 
 // Commands
 pub const CMD_APPEND: u32 = 0xFFFFFF1E;
@@ -571,19 +571,19 @@ pub const REG_TOUCH_DIRECT_Z1Z2: u32 = 0x102578;
 pub const REG_TRACKER: u32 = 0x109000;
 
 // Display timing
-pub const EVE_HSIZE: u32 = 480;
-pub const EVE_VSIZE: u32 = 272;
-pub const EVE_VSYNC0: u32 = 0;
-pub const EVE_VSYNC1: u32 = 10;
-pub const EVE_VOFFSET: u32 = 12;
-pub const EVE_VCYCLE: u32 = 286;
-pub const EVE_HSYNC0: u32 = 0;
-pub const EVE_HSYNC1: u32 = 41;
-pub const EVE_HOFFSET: u32 = 43;
-pub const EVE_HCYCLE: u32 = 525;
-pub const EVE_PCLKPOL: u32 = 1;
-pub const EVE_SWIZZLE: u32 = 0;
-pub const EVE_PCLK: u32 = 5;
-pub const EVE_CSPREAD: u32 = 0;
-pub const EVE_TOUCH_RZTHRESH: u32 = 2000;
+pub const EVE_HSIZE: u16 = 480;
+pub const EVE_VSIZE: u16 = 272;
+pub const EVE_VSYNC0: u16 = 0;
+pub const EVE_VSYNC1: u16 = 10;
+pub const EVE_VOFFSET: u16 = 12;
+pub const EVE_VCYCLE: u16 = 286;
+pub const EVE_HSYNC0: u16 = 0;
+pub const EVE_HSYNC1: u16 = 41;
+pub const EVE_HOFFSET: u16 = 43;
+pub const EVE_HCYCLE: u16 = 525;
+pub const EVE_PCLKPOL: u8 = 1;
+pub const EVE_SWIZZLE: u8 = 0;
+pub const EVE_PCLK: u8 = 5;
+pub const EVE_CSPREAD: u8 = 0;
+pub const EVE_TOUCH_RZTHRESH: u16 = 2000;
 pub const EVE_HAS_CRYSTAL: bool = true;
