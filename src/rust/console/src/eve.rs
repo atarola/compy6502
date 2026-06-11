@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 // Ported from EVE.h by Rudolph Riedel (v4.0, 2020-04-15)
 
 // Host commands

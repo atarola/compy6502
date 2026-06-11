@@ -146,14 +146,14 @@ async fn exec_write32(device: &mut EveSpiDevice, addr: u32, data: u32) {
 }
 
 async fn exec_read8(device: &mut EveSpiDevice, addr: u32) -> u8 {
-    let mut tx = [0u8; 5];
-    let mut rx = [0u8; 5];
+    let mut tx = [0u8; 4];
+    let mut rx = [0u8; 1];
     encode_addr(&mut tx, addr, false);
     device
-        .transaction(&mut [Operation::Transfer(&mut rx, &tx)])
+        .transaction(&mut [Operation::Write(&tx), Operation::Read(&mut rx)])
         .await
         .unwrap();
-    rx[4]
+    rx[0]
 }
 
 fn encode_addr(buf: &mut [u8], addr: u32, write: bool) {
