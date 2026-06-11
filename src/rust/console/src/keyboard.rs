@@ -35,33 +35,30 @@ impl KeyboardHandle {
     }
 }
 
-pub fn keyboard_init(spawner: &Spawner, device: MaxSpiDevice, irq: Input<'static>) {
+pub async fn keyboard_init(spawner: &Spawner, mut device: MaxSpiDevice, irq: Input<'static>) {
+    max_init(&mut device).await;
     spawner.spawn(keyboard_task(device, irq)).unwrap();
 }
 
 #[embassy_executor::task]
 async fn keyboard_task(mut device: MaxSpiDevice, mut _irq: Input<'static>) {
-    log::info!("keyboard_task: start");
-    max_init(&mut device).await;
-
-    // wait for device connection
-    log::info!("keyboard_task: waiting for device");
     loop {
-        let hirq = reg_read(&mut device, HIRQ).await;
-        if hirq & bmCONNIRQ != 0 {
-            reg_write(&mut device, HIRQ, bmCONNIRQ).await;
-            break;
-        }
-        Timer::after_millis(10).await;
+        // wait for device connection
+        wait_for_connect(&mut device).await;
+
+        wait_frames(&mut device, 200).await;
+
+        // enumerate; skip to next connect cycle on failure
+        let (hid_ep, _max_pkt) = enumerate(&mut device).await;
+
+        // poll until disconnect, then loop back
+        poll_hid(&mut device, hid_ep).await;
     }
-    log::info!("keyboard_task: device connected");
+}
 
-    wait_frames(&mut device, 200).await;
-
-    let (hid_ep, _max_pkt) = enumerate(&mut device).await;
-    log::info!("keyboard_task: enumerated, ep=0x{:02X}", hid_ep);
-
-    poll_hid(&mut device, hid_ep).await;
+// wait for bmCONNIRQ, clear it, return
+async fn wait_for_connect(device: &mut MaxSpiDevice) {
+    todo!()
 }
 
 // --- SPI primitives ---
@@ -154,31 +151,28 @@ fn send_ansi(seq: &[u8]) {
 // --- init ---
 
 async fn max_init(device: &mut MaxSpiDevice) {
-    log::info!("max_init: start");
-
+    // configure SPI: full duplex, active-high INT, GPXB pin select
     reg_write(device, PINCTL, bmFDUPSPI | bmINTLEVEL | bmGPXB).await;
-    log::info!("max_init: PINCTL set");
 
+    // chip reset
     reg_write(device, USBCTL, bmCHIPRES).await;
     reg_write(device, USBCTL, 0x00).await;
-    log::info!("max_init: waiting for oscillator");
+
+    // wait for oscillator
     while reg_read(device, USBIRQ).await & bmOSCOKIRQ == 0 {
         Timer::after_millis(1).await;
     }
-    log::info!("max_init: oscillator ok");
 
-    reg_write(device, MODE, bmDPPULLDN | bmDMPULLDN | bmHOST | bmSEPIRQ | bmSOFKAENAB).await;
-    log::info!("max_init: MODE set");
+    // host mode: full speed, separate IRQs, SOF keep-alive
+    reg_write(device, MODE, MODE_FS_HOST | bmSEPIRQ).await;
 
+    // enable connection detect and frame interrupts
     reg_write(device, HIEN, bmCONDETIE | bmFRAMEIE).await;
-    log::info!("max_init: HIEN set");
 
+    // sample bus state and clear connection IRQ
     reg_write(device, HCTL, bmBUSSAMPLE).await;
-    Timer::after_millis(1).await;
-    let hirq = reg_read(device, HIRQ).await;
-    log::info!("max_init: HIRQ after busprobe = 0x{:02X}", hirq);
     reg_write(device, HIRQ, bmCONDETIRQ).await;
 
+    // enable CPU interrupt output
     reg_write(device, CPUCTL, bmIE).await;
-    log::info!("max_init: done");
 }

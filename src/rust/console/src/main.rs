@@ -79,7 +79,7 @@ async fn main(spawner: Spawner) {
     //display::display_init(&spawner, eve_device, eve_pd).await;
 
     //text::text_init(&spawner, display::DisplayHandle::new()).await;
-    keyboard::keyboard_init(&spawner, max_device, max_irq);
+    keyboard::keyboard_init(&spawner, max_device, max_irq).await;
     host::host_init(
         p.CORE1,
         text::TextHandle::new(),
