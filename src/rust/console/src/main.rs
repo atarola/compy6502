@@ -15,7 +15,7 @@ use defmt::*;
 use embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
-use embassy_rp::gpio::{Input, Level, Output, Pull};
+use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{SPI1, USB};
 use embassy_rp::spi::{Async, Config, Spi};
 use embassy_rp::usb::{Driver, InterruptHandler};
@@ -37,6 +37,16 @@ static LOGGER_STATE: StaticCell<LoggerState<'static>> = StaticCell::new();
 #[embassy_executor::task]
 async fn usb_logger_task(state: &'static mut LoggerState<'static>, driver: Driver<'static, USB>) {
     USB_LOGGER.run(state, driver).await;
+}
+
+#[embassy_executor::task]
+async fn blink_task(mut led: Output<'static>) {
+    loop {
+        led.set_high();
+        Timer::after_millis(500).await;
+        led.set_low();
+        Timer::after_millis(500).await;
+    }
 }
 
 static SPI1_BUS: StaticCell<Mutex<CriticalSectionRawMutex, Spi<'static, SPI1, Async>>> =
@@ -73,25 +83,14 @@ async fn main(spawner: Spawner) {
     let eve_device = SpiDeviceWithConfig::new(spi1_bus, eve_cs, Config::default());
 
     let max_cs = Output::new(p.PIN_10, Level::High);
-    let max_irq = Input::new(p.PIN_9, Pull::Up);
     let max_device = SpiDeviceWithConfig::new(spi1_bus, max_cs, Config::default());
 
-    let mut led = Output::new(p.PIN_13, Level::Low);
+    let led = Output::new(p.PIN_13, Level::Low);
 
     display::display_init(&spawner, eve_device, eve_pd).await;
-    text::text_init(&spawner, display::DisplayHandle::new()).await;
-    keyboard::keyboard_init(&spawner, max_device, max_irq).await;
+    text::text_init(&spawner).await;
+    keyboard::keyboard_init(&spawner, max_device).await;
+    host::host_init(spawner, p.CORE1);
 
-    host::host_init(
-        p.CORE1,
-        text::TextHandle::new(),
-        graphics::GraphicsHandle::new(),
-    );
-
-    loop {
-        led.set_high();
-        Timer::after_millis(500).await;
-        led.set_low();
-        Timer::after_millis(500).await;
-    }
+    spawner.spawn(blink_task(led)).unwrap();
 }

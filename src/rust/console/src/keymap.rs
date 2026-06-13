@@ -1,3 +1,13 @@
+// HID boot protocol modifier byte (report byte 0) bit masks
+pub const MOD_LEFT_CTRL: u8 = 0x01;
+pub const MOD_LEFT_SHIFT: u8 = 0x02;
+pub const MOD_LEFT_ALT: u8 = 0x04;
+pub const MOD_LEFT_GUI: u8 = 0x08;
+pub const MOD_RIGHT_CTRL: u8 = 0x10;
+pub const MOD_RIGHT_SHIFT: u8 = 0x20;
+pub const MOD_RIGHT_ALT: u8 = 0x40;
+pub const MOD_RIGHT_GUI: u8 = 0x80;
+
 // HID keycode lookup tables.
 // ASCII table is HID_KEYCODE_TO_ASCII from TinyUSB:
 //   https://github.com/hathach/tinyusb/blob/master/src/class/hid/hid.h
@@ -5,19 +15,19 @@
 
 // HID boot keycode -> ANSI escape sequence, ported from the arduino console ansiKeys table
 // covers the non-ASCII keys we care about: arrows, home/end, delete, F1-F4
-pub static KEYCODE_TO_ANSI: &[(u8, &[u8])] = &[
-    (0x52, b"\x1b[A"),  // Arrow Up
-    (0x51, b"\x1b[B"),  // Arrow Down
-    (0x4f, b"\x1b[C"),  // Arrow Right
-    (0x50, b"\x1b[D"),  // Arrow Left
-    (0x4a, b"\x1b[H"),  // Home
-    (0x4d, b"\x1b[F"),  // End
-    (0x4c, b"\x1b[3~"), // Delete
-    (0x3a, b"\x1bOP"),  // F1
-    (0x3b, b"\x1bOQ"),  // F2
-    (0x3c, b"\x1bOR"),  // F3
-    (0x3d, b"\x1bOS"),  // F4
-];
+pub static KEYCODE_TO_ANSI: phf::Map<u8, &[u8]> = phf::phf_map! {
+    0x52u8 => b"\x1b[A",  // Arrow Up
+    0x51u8 => b"\x1b[B",  // Arrow Down
+    0x4fu8 => b"\x1b[C",  // Arrow Right
+    0x50u8 => b"\x1b[D",  // Arrow Left
+    0x4au8 => b"\x1b[H",  // Home
+    0x4du8 => b"\x1b[F",  // End
+    0x4cu8 => b"\x1b[3~", // Delete
+    0x3au8 => b"\x1bOP",  // F1
+    0x3bu8 => b"\x1bOQ",  // F2
+    0x3cu8 => b"\x1bOR",  // F3
+    0x3du8 => b"\x1bOS",  // F4
+};
 
 // HID boot keycode -> [unshifted, shifted] ASCII, ported from TinyUSB HID_KEYCODE_TO_ASCII
 // a 0 entry means non-printable / unhandled

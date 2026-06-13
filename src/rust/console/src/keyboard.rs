@@ -43,13 +43,13 @@ impl KeyboardHandle {
     }
 }
 
-pub async fn keyboard_init(spawner: &Spawner, mut device: MaxSpiDevice, irq: Input<'static>) {
+pub async fn keyboard_init(spawner: &Spawner, mut device: MaxSpiDevice) {
     max_init(&mut device).await;
-    spawner.spawn(keyboard_task(device, irq)).unwrap();
+    spawner.spawn(keyboard_task(device)).unwrap();
 }
 
 #[embassy_executor::task]
-async fn keyboard_task(mut device: MaxSpiDevice, mut _irq: Input<'static>) {
+async fn keyboard_task(mut device: MaxSpiDevice) {
     loop {
         // wait for device connection
         wait_for_connect(&mut device).await;
@@ -153,7 +153,7 @@ async fn reset_bus(device: &mut MaxSpiDevice) {
 
 // write HXFR, spin on HXFRDNIRQ, clear it, return HRSL result nibble
 // retries on NAK up to NAK_LIMIT and on TIMEOUT up to RETRY_LIMIT
-async fn dispatch_pkt(device: &mut MaxSpiDevice, token: u8, ep: u8) -> u8 {
+async fn dispatch_pkt(device: &mut MaxSpiDevice, token: u8, ep: u8, nak_limit: u8) -> u8 {
     let mut retry_count = 0;
     let mut nak_count = 0;
 
@@ -164,7 +164,7 @@ async fn dispatch_pkt(device: &mut MaxSpiDevice, token: u8, ep: u8) -> u8 {
 
         if result == hrNAK {
             nak_count += 1;
-            if nak_count == NAK_LIMIT {
+            if nak_count == nak_limit {
                 return result;
             }
 
@@ -186,12 +186,12 @@ async fn dispatch_pkt(device: &mut MaxSpiDevice, token: u8, ep: u8) -> u8 {
 
 // dispatch tokIN on ep, drain RCVFIFO into buf, repeat until short packet or buf full
 // returns 0 on success, hrXxx on error
-async fn in_transfer(device: &mut MaxSpiDevice, ep: u8, max_packet: u8, buf: &mut [u8]) -> u8 {
+async fn in_transfer(device: &mut MaxSpiDevice, ep: u8, max_packet: u8, buf: &mut [u8], nak_limit: u8) -> u8 {
     let mut result;
     let mut xfrlen = 0;
 
     loop {
-        result = dispatch_pkt(device, tokIN, ep).await;
+        result = dispatch_pkt(device, tokIN, ep, nak_limit).await;
         if result != 0 {
             return result;
         }
@@ -234,13 +234,13 @@ async fn ctrl_in(
     let mut result;
 
     write_fifo(device, SUDFIFO, setup_pkt).await;
-    result = dispatch_pkt(device, tokSETUP, 0).await;
+    result = dispatch_pkt(device, tokSETUP, 0, NAK_LIMIT).await;
     if result != 0 {
         return result;
     }
 
     reg_write(device, HCTL, bmRCVTOG1).await;
-    result = in_transfer(device, 0, max_packet, buf).await;
+    result = in_transfer(device, 0, max_packet, buf, NAK_LIMIT).await;
     if result != 0 {
         return result;
     }
@@ -251,12 +251,12 @@ async fn ctrl_in(
 // control write with no data stage: SETUP + INHS status
 async fn ctrl_nodata(device: &mut MaxSpiDevice, setup_pkt: &[u8; 8]) -> u8 {
     write_fifo(device, SUDFIFO, setup_pkt).await;
-    let result = dispatch_pkt(device, tokSETUP, 0).await;
+    let result = dispatch_pkt(device, tokSETUP, 0, NAK_LIMIT).await;
     if result != 0 {
         return result;
     }
 
-    dispatch_pkt(device, tokINHS, 0).await
+    dispatch_pkt(device, tokINHS, 0, NAK_LIMIT).await
 }
 
 // --- enumeration ---
@@ -325,7 +325,7 @@ async fn enumerate(device: &mut MaxSpiDevice) -> Option<HidEndpoint> {
         log::error!("enumerate: GET_DESCRIPTOR(Config, 4) failed: 0x{:02X}", r);
         return None;
     }
-    let max_config = config_size_buf[2] as usize + 256 * config_size_buf[3] as usize;
+    let max_config = (config_size_buf[2] as usize + 256 * config_size_buf[3] as usize).min(256);
 
     // grab the full device config
     get_cfg_desc[6] = config_size_buf[2];
@@ -403,36 +403,63 @@ async fn poll_hid(device: &mut MaxSpiDevice, ep: &HidEndpoint) {
     // so the loop below only fires on an actual disconnect
     reg_write(device, HIRQ, bmCONNIRQ).await;
 
-    let mut report = [0u8; 8];
+    let mut curr = [0u8; 8];
+    let mut prev = [0u8; 8];
+
     loop {
+        let status = reg_read(device, HIRQ).await;
+
         // bail on disconnect so keyboard_task loops back to wait_for_connect
-        if reg_read(device, HIRQ).await & bmCONNIRQ != 0 {
+        if status & bmCONNIRQ != 0 {
             reg_write(device, HIRQ, bmCONNIRQ).await;
             return;
         }
 
-        let r = in_transfer(device, ep.addr & 0x0F, ep.max_packet, &mut report).await;
-        if r == 0 && report.iter().any(|&b| b != 0) {
-            log::info!("poll_hid: report={:02X?}", report);
+        let response = in_transfer(device, ep.addr & 0x0F, ep.max_packet, &mut curr, NAK_LIMIT_HID).await;
+        if response == 0 {
+            process_report(&curr, &prev).await;
+            prev = curr;
         }
-        // TODO: diff against previous report, decode, push to KEYBOARD_CHANNEL
-        Timer::after_millis(100).await;
+
+        wait_frames(device, 10).await;
     }
 }
 
 // diff current and previous 8-byte HID boot report; push new keypresses to channel
-fn process_report(report: &[u8; 8], prev: &[u8; 8]) {
-    todo!()
-}
+async fn process_report(curr: &[u8; 8], prev: &[u8; 8]) {
+    if curr.iter().all(|&i| i == 0) {
+        return;
+    }
 
-// HID boot protocol keycode -> ASCII; returns None for non-printable / unhandled
-fn keycode_to_ascii(keycode: u8, shifted: bool) -> Option<u8> {
-    todo!()
-}
+    if curr == prev {
+        return;
+    }
 
-// push ESC + seq bytes to KEYBOARD_CHANNEL (for arrow keys, F-keys, etc.)
-fn send_ansi(seq: &[u8]) {
-    todo!()
+    let shift = curr[0] & (MOD_LEFT_SHIFT | MOD_RIGHT_SHIFT) != 0;
+
+    for &keycode in &curr[2..] {
+        if keycode == 0 {
+            continue;
+        }
+
+        if prev[2..].contains(&keycode) {
+            continue;
+        }
+
+        if keycode < 128 {
+            let ascii = KEYCODE_TO_ASCII[keycode as usize][shift as usize];
+            if ascii != 0 {
+                KEYBOARD_CHANNEL.send(ascii).await;
+                continue;
+            }
+        }
+
+        if let Some(&seq) = KEYCODE_TO_ANSI.get(&keycode) {
+            for &item in seq {
+                KEYBOARD_CHANNEL.send(item).await;
+            }
+        }
+    }
 }
 
 // --- init ---

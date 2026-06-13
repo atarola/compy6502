@@ -439,9 +439,8 @@ impl TextState {
     }
 }
 
-pub async fn text_init(spawner: &Spawner, driver: DisplayHandle) -> TextHandle {
-    spawner.spawn(text_task(driver)).unwrap();
-    TextHandle::new()
+pub async fn text_init(spawner: &Spawner) {
+    spawner.spawn(text_task(DisplayHandle::new())).unwrap();
 }
 
 #[embassy_executor::task]

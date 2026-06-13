@@ -142,4 +142,5 @@ pub const hrTIMEOUT: u8 = 0x0E;
 pub const hrBABBLE: u8 = 0x0F;
 
 pub const NAK_LIMIT: u8 = 200;
+pub const NAK_LIMIT_HID: u8 = 3;
 pub const RETRY_LIMIT: u8 = 3;

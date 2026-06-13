@@ -1,11 +1,12 @@
-use embassy_executor::Executor;
+use embassy_executor::{Executor, Spawner};
 use embassy_rp::Peri;
+use embassy_time::Timer;
 use embassy_rp::multicore::{Stack, spawn_core1};
 use embassy_rp::pac;
 use embassy_rp::peripherals::CORE1;
 use static_cell::StaticCell;
 
-use crate::graphics::GraphicsHandle;
+use crate::keyboard::KeyboardHandle;
 use crate::text::TextHandle;
 
 const CMD_READ_STATUS: u8 = 0x01;
@@ -26,17 +27,30 @@ enum State {
 
 static mut CORE1_STACK: Stack<4096> = Stack::new();
 
-pub fn host_init(core1: Peri<'static, CORE1>, text: TextHandle, graphics: GraphicsHandle) {
+pub fn host_init(spawner: Spawner, core1: Peri<'static, CORE1>) {
+    spawner.spawn(echo_task()).unwrap();
     spawn_core1(core1, unsafe { &mut *(&raw mut CORE1_STACK) }, move || {
         static EXECUTOR: StaticCell<Executor> = StaticCell::new();
         EXECUTOR.init(Executor::new()).run(|spawner| {
-            spawner.spawn(host_task(text, graphics)).unwrap();
+            spawner.spawn(host_task()).unwrap();
         });
     });
 }
 
 #[embassy_executor::task]
-async fn host_task(text: TextHandle, _graphics: GraphicsHandle) {
+async fn echo_task() {
+    let keyboard = KeyboardHandle::new();
+    let text = TextHandle::new();
+    loop {
+        if let Some(c) = keyboard.get_char().await {
+            text.put_char(c).await;
+        }
+        Timer::after_millis(10).await;
+    }
+}
+
+#[embassy_executor::task]
+async fn host_task() {
     for pin in 0..4usize {
         pac::IO_BANK0.gpio(pin).ctrl().write(|w| w.set_funcsel(1));
     }
@@ -83,11 +97,14 @@ async fn host_task(text: TextHandle, _graphics: GraphicsHandle) {
 
             State::SendStatus => (State::Idle, 0),
 
-            State::SendChar => (State::Idle, 0),
+            State::SendChar => {
+                let c = KeyboardHandle::new().get_char().await.unwrap_or(0);
+                (State::Idle, c)
+            }
 
             State::ReceiveChar => {
                 if mode == MODE_TEXT {
-                    text.put_char(rx).await;
+                    TextHandle::new().put_char(rx).await;
                 }
                 (State::Idle, 0)
             }
