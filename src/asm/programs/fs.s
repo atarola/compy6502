@@ -53,15 +53,15 @@ FS_SM_CRC           = $17   ; 1 byte
   jsr FRAM_SETUP
   bcs @error
 
-  lda #SPI_CS_SEL0 | SPI_CLK_125K
-  jsr SPI_CONFIGURE
-
   lda #<vol_name
   sta K_PTR_LO
   lda #>vol_name
   sta K_PTR_HI
 
   jsr fs_format
+  bcs @error
+
+  jsr fs_dump
   bcs @error
 
   jmp WOZMON
@@ -80,7 +80,7 @@ vol_name:
 ; in:  K_PTR = pascal string for volume name
 ; out: carry clear = success
 ;      carry set   = error
-; clobbers: A, Y, flags, K_PTR, K_PTR2, K_LEN, K_TMP2, K_TMP3
+; clobbers: A, Y, flags, K_PTR, K_PTR2, K_LEN
 fs_format:
   ; stash the pointer to the pascal string
   lda K_PTR_LO
@@ -88,8 +88,23 @@ fs_format:
   lda K_PTR_HI
   sta K_TMP3
 
-  ; --- write START index record first ---
-  ; source
+  ; --- write super block ---
+  lda #<super_block
+  sta K_PTR_LO
+  lda #>super_block
+  sta K_PTR_HI
+
+  stz K_PTR2_LO
+  stz K_PTR2_HI
+
+  lda #FS_SB_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jsr FRAM_WRITE_CHUNK
+  bcs @error
+
+  ; --- write start index record ---
   lda #<start_index_record
   sta K_PTR_LO
   lda #>start_index_record
@@ -107,11 +122,9 @@ fs_format:
   sta K_PTR2_LO
 
   ; make it so
-  jsr fram_wren
   jsr FRAM_WRITE_CHUNK
   bcs @error
 
-  ; --- build and write the vol_id record ---
   lda #$01
   sta K_BUF
 
@@ -156,7 +169,6 @@ fs_format:
   lda #>K_BUF
   sta K_PTR_HI
 
-  jsr fram_wren
   jsr FRAM_WRITE_CHUNK
   bcs @error
 
@@ -165,17 +177,6 @@ fs_format:
 
 @error:
   sec
-  rts
-
-; Issue a WREN to set the FRAM write-enable latch.
-; in:  none
-; out: none
-; clobbers: A, flags
-fram_wren:
-  jsr SPI_SELECT
-  lda #$06
-  jsr SPI_WRITE
-  jsr SPI_DESELECT
   rts
 
 ; Scan index for a file by name.
@@ -267,6 +268,125 @@ fs_crc:
   sbc K_TMP0
 
   clc
+  rts
+
+print_newline:
+  lda #$0D
+  jsr ACIA_PUTC
+  lda #$0A
+  jsr ACIA_PUTC
+  rts
+
+; in:  K_PTR = buffer, K_LEN = byte count
+; clobbers: A, X, flags, K_PTR, K_LEN
+hex_dump:
+@loop:
+  lda K_LEN_LO
+  ora K_LEN_HI
+  beq @end
+
+  lda (K_PTR)
+  jsr BYTE_TO_HEX
+  jsr ACIA_PUTC
+  txa
+  jsr ACIA_PUTC
+
+  lda #' '
+  jsr ACIA_PUTC
+
+  INC16 K_PTR
+  DEC16 K_LEN
+  jmp @loop
+
+@end:
+  rts
+
+; Dump the super block and all index entries to the ACIA.
+; in:  none
+; out: carry clear = success, carry set = error
+; clobbers: A, X, Y, flags, K_PTR, K_PTR2, K_LEN, K_TMP0, K_TMP1
+fs_dump:
+  lda #<K_BUF
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+  stz K_PTR2_LO
+  stz K_PTR2_HI
+  lda #FS_SB_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+  jsr FRAM_READ_CHUNK
+  bcs @error
+
+  lda #<K_BUF
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+  lda #FS_SB_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+  jsr hex_dump
+  jsr print_newline
+
+  lda K_BUF + FS_SB_INDEX_SIZE
+  sta K_TMP0
+  lda K_BUF + FS_SB_INDEX_SIZE + 1
+  sta K_TMP1
+
+  lda #$FF
+  sta K_PTR2_HI
+  lda #$FF - (FS_ENTRY_SIZE - 1)
+  sta K_PTR2_LO
+
+@index_loop:
+  lda K_TMP0
+  ora K_TMP1
+  beq @done
+
+  lda #<K_BUF
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+  lda #FS_ENTRY_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+  jsr FRAM_READ_CHUNK
+  bcs @error
+
+  lda #<K_BUF
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+  lda #FS_ENTRY_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+  jsr hex_dump
+  jsr print_newline
+
+  lda K_PTR2_LO
+  sec
+  sbc #FS_ENTRY_SIZE
+  sta K_PTR2_LO
+  bcs @no_borrow_ptr
+  dec K_PTR2_HI
+@no_borrow_ptr:
+
+  lda K_TMP0
+  sec
+  sbc #FS_ENTRY_SIZE
+  sta K_TMP0
+  bcs @no_borrow_cnt
+  dec K_TMP1
+@no_borrow_cnt:
+
+  jmp @index_loop
+
+@done:
+  clc
+  rts
+
+@error:
+  sec
   rts
 
 start_index_record:

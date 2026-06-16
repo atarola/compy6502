@@ -240,6 +240,18 @@ FRAM_WRITE_CHUNK = JUMP_BASE + (3 * 18)
 ; clobbers: A, Y, flags, K_PTR, K_LEN
 FRAM_READ_CHUNK = JUMP_BASE + (3 * 19)
 
+; K_PTR += K_LEN
+; clobbers: A, flags
+ADD16_PTR_LEN = JUMP_BASE + (3 * 20)
+
+; K_PTR -= K_LEN
+; clobbers: A, flags
+SUB16_PTR_LEN = JUMP_BASE + (3 * 21)
+
+; K_PTR2 += K_LEN
+; clobbers: A, flags
+ADD16_PTR2_LEN = JUMP_BASE + (3 * 22)
+
 ;
 ; Helper macros
 ; 

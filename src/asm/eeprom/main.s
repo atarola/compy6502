@@ -8,6 +8,7 @@
 .segment "KERNEL"
 .include "kernel/acia.s"
 .include "kernel/fram.s"
+.include "kernel/math.s"
 .include "kernel/irq.s"
 .include "kernel/line.s"
 .include "kernel/loader.s"
