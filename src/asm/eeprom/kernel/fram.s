@@ -24,12 +24,6 @@ FRAM_CONFIG = SPI_CS_SEL0 | SPI_CLK_1M
 fram_setup:
   lda #FRAM_CONFIG
   jsr SPI_CONFIGURE
-  jsr SPI_SELECT
-
-  lda #FRAM_CMD_WREN
-  jsr SPI_WRITE
-
-  jsr SPI_DESELECT
   clc
   rts
 
@@ -42,7 +36,12 @@ fram_setup:
 ; clobbers: A, Y, flags, K_PTR, K_LEN
 fram_write_chunk:
   jsr SPI_SELECT
-
+  lda #FRAM_CMD_WREN
+  jsr SPI_WRITE
+  jsr SPI_DESELECT
+  
+  jsr SPI_SELECT
+  
   lda #FRAM_CMD_WRITE
   jsr SPI_WRITE
 

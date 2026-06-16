@@ -9,9 +9,10 @@ from py65.memory import ObservableMemory
 
 ACIA_DATA   = 0xC000
 ACIA_STATUS = 0xC001
-SPI_DATA    = 0xC040
-SPI_CONFIG  = 0xC041
-SPI_STATUS  = 0xC042
+SPI_DATA      = 0xC040
+SPI_CONFIG    = 0xC041
+SPI_STATUS    = 0xC042
+SPI_CS_ENABLE = 0x04
 K_PTR_LO    = 0x02
 K_PTR_HI    = 0x03
 K_PTR2_LO   = 0x04
@@ -191,6 +192,8 @@ class SpiDevice:
         self.tx_buf = []
         self.rx_buf = deque(rx_data)
         self.config_reg = 0x00
+        self._transactions = []
+        self._current_txn = None
 
     def install(self, memory):
         memory.subscribe_to_read([SPI_STATUS], self.read_status)
@@ -201,6 +204,9 @@ class SpiDevice:
 
     def tx(self):
         return bytes(self.tx_buf)
+
+    def transactions(self):
+        return [bytes(t) for t in self._transactions]
 
     def config(self):
         return self.config_reg
@@ -216,8 +222,17 @@ class SpiDevice:
 
     def write_data(self, address, value):
         self.tx_buf.append(value)
+        if self._current_txn is not None:
+            self._current_txn.append(value)
         return value
 
     def write_config(self, address, value):
+        cs_was = bool(self.config_reg & SPI_CS_ENABLE)
+        cs_now = bool(value & SPI_CS_ENABLE)
         self.config_reg = value
+        if not cs_was and cs_now:
+            self._current_txn = []
+        elif cs_was and not cs_now and self._current_txn is not None:
+            self._transactions.append(self._current_txn)
+            self._current_txn = None
         return value

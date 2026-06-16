@@ -57,6 +57,13 @@ SPI_BUSY      = %00000001
 ; ROM ABI
 ;
 
+;
+; RAM buffers
+;
+
+WOZMON_BUF = $0200  ; wozmon input buffer (256 bytes)
+K_BUF      = $0300  ; kernel scratch buffer (256 bytes)
+
 ; Kernel constants
 ; $00 thru $1F are reserved for kernel work
 

@@ -1,5 +1,6 @@
 from asm.unit.base import BaseTest
 
+FRAM_CMD_WREN  = 0x06
 FRAM_CMD_WRITE = 0x02
 SRC_ADDR  = 0x0300
 FRAM_ADDR = 0x1234
@@ -19,9 +20,40 @@ class TestKernelFramWriteChunk(BaseTest):
         self.run_sub(cpu, "FRAM_WRITE_CHUNK", max_steps=5000)
 
         self.assertEqual(
-            bytes([FRAM_CMD_WRITE, 0x12, 0x34, 0xAA, 0xBB, 0xCC]),
+            bytes([FRAM_CMD_WREN, FRAM_CMD_WRITE, 0x12, 0x34, 0xAA, 0xBB, 0xCC]),
             spi.tx()
         )
+
+    def test_fram_write_chunk_wren_in_own_transaction(self):
+        cpu = self.get_rom_cpu()
+        spi = cpu.install_spi()
+
+        cpu.poke(SRC_ADDR, bytes([0xAA]))
+        cpu.set_k_ptr(SRC_ADDR)
+        cpu.set_k_ptr2(FRAM_ADDR)
+        cpu.set_k_len(1)
+
+        self.run_sub(cpu, "FRAM_WRITE_CHUNK", max_steps=5000)
+
+        txns = spi.transactions()
+        self.assertEqual(bytes([FRAM_CMD_WREN]), txns[0])
+        self.assertEqual(FRAM_CMD_WRITE, txns[1][0])
+
+    def test_fram_write_chunk_sends_wren_before_write(self):
+        cpu = self.get_rom_cpu()
+        spi = cpu.install_spi()
+
+        cpu.poke(SRC_ADDR, bytes([0xAA]))
+        cpu.set_k_ptr(SRC_ADDR)
+        cpu.set_k_ptr2(FRAM_ADDR)
+        cpu.set_k_len(1)
+
+        self.run_sub(cpu, "FRAM_WRITE_CHUNK", max_steps=5000)
+
+        tx = spi.tx()
+        wren_pos = tx.index(FRAM_CMD_WREN)
+        write_pos = tx.index(FRAM_CMD_WRITE)
+        self.assertLess(wren_pos, write_pos)
 
     def test_fram_write_chunk_carry_clear(self):
         cpu = self.get_rom_cpu()
