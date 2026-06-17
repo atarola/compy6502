@@ -4,22 +4,20 @@
 
 ; FRAM Filesystem
 ;
-; $0000           super block (9 bytes)
-; $0000-RSVD      reserved area
-; RSVD to FREE    data slab (append-only, grows up)
+; $0000           super block (5 bytes)
+; $0005 to FREE   data slab (append-only, grows up)
 ; FREE to IDX     free area
 ; IDX to $FFFF    index (24-byte entries, grows down)
 ;
+; FREE = FS_SB_DATA_PTR, IDX = FS_SB_INDEX_PTR (both tracked in the super block)
 ; file ID = FRAM address of index entry, returned by fs_find
 
-; Super Block (at FRAM offset $0000, 9 bytes)
-FS_SB_TOTAL_BYTES   = $00   ; 2 bytes lo/hi, total FRAM size
-FS_SB_RSVD_BYTES    = $02   ; 2 bytes lo/hi, reserved area size
-FS_SB_DATA_SIZE     = $04   ; 2 bytes lo/hi, bytes used in data slab
-FS_SB_INDEX_SIZE    = $06   ; 2 bytes lo/hi, bytes used in index
-FS_SB_CRC           = $08   ; 1 byte, zero-sum of all above bytes
+; Super Block (at FRAM offset $0000, 5 bytes)
+FS_SB_DATA_PTR      = $00   ; 2 bytes lo/hi, next free address in data slab
+FS_SB_INDEX_PTR     = $02   ; 2 bytes lo/hi, address of the start of the index region (lowest entry in use)
+FS_SB_CRC           = $04   ; 1 byte, zero-sum of all above bytes
 
-FS_SB_SIZE          = $09   ; total super block size in bytes
+FS_SB_SIZE          = $05   ; total super block size in bytes
 
 ; Index entry types
 FS_ENTRY_VOL_ID     = $01
@@ -51,7 +49,9 @@ FS_SM_CRC           = $17   ; 1 byte
 
 .org $1000
   jsr FRAM_SETUP
-  bcs @error
+  bcc :+
+  jmp @error
+:
 
   lda #<vol_name
   sta K_PTR_LO
@@ -61,8 +61,76 @@ FS_SM_CRC           = $17   ; 1 byte
   jsr fs_format
   bcs @error
 
+  lda #<file_data
+  sta K_PTR_LO
+  lda #>file_data
+  sta K_PTR_HI
+
+  lda #<file_name
+  sta K_PTR2_LO
+  lda #>file_name
+  sta K_PTR2_HI
+
+  lda #<file_data_len
+  sta K_LEN_LO
+  lda #>file_data_len
+  sta K_LEN_HI
+
+  jsr fs_write
+  bcs @error
+
   jsr fs_dump
   bcs @error
+
+  ; dump data slab: read from FS_SB_SIZE for (data_ptr - FS_SB_SIZE) bytes
+  jsr fs_read_sb
+  bcs @error
+
+  ; length used = data_ptr - FS_SB_SIZE
+  lda K_BUF + FS_SB_DATA_PTR
+  sta K_PTR_LO
+  lda K_BUF + FS_SB_DATA_PTR + 1
+  sta K_PTR_HI
+
+  lda #FS_SB_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jsr SUB16_PTR_LEN
+
+  lda K_PTR_LO
+  sta K_TMP0
+  lda K_PTR_HI
+  sta K_TMP1
+
+  lda #<K_BUF
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+
+  lda #FS_SB_SIZE
+  sta K_PTR2_LO
+  stz K_PTR2_HI
+
+  lda K_TMP0
+  sta K_LEN_LO
+  lda K_TMP1
+  sta K_LEN_HI
+
+  jsr FRAM_READ_CHUNK
+  bcs @error
+
+  lda #<K_BUF
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+  lda K_TMP0
+  sta K_LEN_LO
+  lda K_TMP1
+  sta K_LEN_HI
+
+  jsr hex_dump
+  jsr print_newline
 
   jmp WOZMON
 
@@ -75,6 +143,15 @@ FS_SM_CRC           = $17   ; 1 byte
 
 vol_name:
   .byte $05, "hello"
+
+file_name:
+  .byte $04, "test"
+
+file_data:
+  .byte "hello from fram"
+file_data_end:
+
+file_data_len = file_data_end - file_data
 
 ; Initialize a fresh FRAM volume.
 ; in:  K_PTR = pascal string for volume name
@@ -125,6 +202,24 @@ fs_format:
   jsr FRAM_WRITE_CHUNK
   bcs @error
 
+  ; copy the zeroed start record template into the buffer so reserved
+  ; bytes are clean instead of stale RAM
+  lda #<start_index_record
+  sta K_PTR_LO
+  lda #>start_index_record
+  sta K_PTR_HI
+
+  lda #<K_BUF
+  sta K_PTR2_LO
+  lda #>K_BUF
+  sta K_PTR2_HI
+
+  lda #FS_ENTRY_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jsr mem_copy
+
   lda #$01
   sta K_BUF
 
@@ -150,7 +245,7 @@ fs_format:
   sta K_LEN_LO
   stz K_LEN_HI
 
-  jsr fs_crc
+  jsr crc
   sta K_BUF, y
 
   ; stash the buffer in the right place
@@ -179,6 +274,25 @@ fs_format:
   sec
   rts
 
+; Read the super block into K_BUF.
+; in:  none
+; out: carry clear = success, carry set = error
+; clobbers: A, Y, flags, K_PTR, K_PTR2, K_LEN
+fs_read_sb:
+  lda #<K_BUF
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+
+  stz K_PTR2_LO
+  stz K_PTR2_HI
+
+  lda #FS_SB_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jmp FRAM_READ_CHUNK
+
 ; Scan index for a file by name.
 ; in:  K_PTR  = pascal string filename
 ; out: carry clear = found, K_PTR2 = file ID (FRAM address of index entry)
@@ -206,7 +320,224 @@ fs_read:
 ;      carry set   = error
 ; clobbers: A, Y, flags, K_PTR, K_LEN
 fs_write:
+  ; stash the filename
+  lda K_PTR2_LO
+  pha
+  lda K_PTR2_HI
+  pha
+
+  ; stash the source
+  lda K_PTR_LO
+  pha
+  lda K_PTR_HI
+  pha
+
+  ; stash the file length
+  lda K_LEN_LO
+  sta K_TMP0
+  lda K_LEN_HI
+  sta K_TMP1
+
+  ; grab the superblock and stash it locally
+  jsr fs_read_sb
+
+  ; restore the filesize
+  lda K_TMP0
+  sta K_LEN_LO
+  lda K_TMP1
+  sta K_LEN_HI
+
+  ; restore the source pointer
+  pla 
+  sta K_PTR_HI
+  pla 
+  sta K_PTR_LO
+
+  ; set the target
+  lda K_BUF + FS_SB_DATA_PTR
+  sta K_PTR2_LO
+  sta K_TMP2
+
+  lda K_BUF + FS_SB_DATA_PTR + 1
+  sta K_PTR2_HI
+  sta K_TMP3
+
+  ; write out the file
+  jsr FRAM_WRITE_CHUNK
+  bcc :+
+  jmp @fram_write_error
+:
+
+  ; calculate where the new free pointer goes
+  lda K_TMP0
+  sta K_LEN_LO
+  lda K_TMP1
+  sta K_LEN_HI
+
+  lda K_TMP2
+  sta K_PTR2_LO
+  lda K_TMP3
+  sta K_PTR2_HI
+
+  jsr ADD16_PTR2_LEN
+  lda K_PTR2_LO
+  sta K_BUF + FS_SB_DATA_PTR
+  lda K_PTR2_HI
+  sta K_BUF + FS_SB_DATA_PTR + 1
+
+  ; calculate the new index ptr
+  lda K_BUF + FS_SB_INDEX_PTR
+  sta K_PTR_LO
+  lda K_BUF + FS_SB_INDEX_PTR + 1
+  sta K_PTR_HI
+
+  stz K_LEN_HI
+  lda #FS_ENTRY_SIZE
+  sta K_LEN_LO
+
+  jsr SUB16_PTR_LEN
+
+  lda K_PTR_LO
+  sta K_BUF + FS_SB_INDEX_PTR
+  lda K_PTR_HI
+  sta K_BUF + FS_SB_INDEX_PTR + 1
+
+  ; copy the start index record to our buffer
+  lda #FS_ENTRY_SIZE 
+  sta K_PTR2_LO
+  lda #>K_BUF
+  sta K_PTR2_HI
+
+  lda #<start_index_record
+  sta K_PTR_LO
+  lda #>start_index_record
+  sta K_PTR_HI
+
+  lda #FS_ENTRY_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jsr mem_copy
+
+  ; copy another start entry afterword as a stub
+  lda #(FS_ENTRY_SIZE * 2)
+  sta K_PTR2_LO
+  lda #>K_BUF
+  sta K_PTR2_HI
+
+  lda #<start_index_record
+  sta K_PTR_LO
+  lda #>start_index_record
+  sta K_PTR_HI
+
+  lda #FS_ENTRY_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jsr mem_copy
+
+  ; lets build the entry
+  lda #FS_ENTRY_FILE
+  sta K_BUF + (FS_ENTRY_SIZE * 2) + FS_FILE_TYPE
+
+  lda K_TMP2
+  sta K_BUF + (FS_ENTRY_SIZE * 2) + FS_FILE_START
+  lda K_TMP3
+  sta K_BUF + (FS_ENTRY_SIZE * 2) + FS_FILE_START + 1
+
+  lda K_TMP0 
+  sta K_BUF + (FS_ENTRY_SIZE * 2) + FS_FILE_LEN
+  lda K_TMP1
+  sta K_BUF + (FS_ENTRY_SIZE * 2) + FS_FILE_LEN + 1
+
+  ; TODO: write proper entry point
+  stz K_BUF + (FS_ENTRY_SIZE * 2) + FS_FILE_ADDR
+  stz K_BUF + (FS_ENTRY_SIZE * 2) + FS_FILE_ADDR + 1
+
+  ; write the filename in 
+  lda #((FS_ENTRY_SIZE * 2) + FS_FILE_NAME) 
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+  pla 
+  sta K_PTR2_HI
+  pla 
+  sta K_PTR2_LO
+  jsr STR_COPY
+
+  ; time to crc the whole thing
+  lda #(FS_ENTRY_SIZE * 2)
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+
+  lda #(FS_ENTRY_SIZE - 1)
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jsr crc
+  sta K_BUF + (FS_ENTRY_SIZE * 2) + FS_FILE_CRC
+
+  ; lets write the index records first
+  lda #FS_ENTRY_SIZE
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+
+  lda K_BUF + FS_SB_INDEX_PTR
+  sta K_PTR2_LO
+  lda K_BUF + FS_SB_INDEX_PTR + 1
+  sta K_PTR2_HI
+
+  lda #(FS_ENTRY_SIZE * 2)
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jsr FRAM_WRITE_CHUNK
+  bcc :+
+  jmp @error
+:
+
+  ; lets update the crc for the superblock
+  stz K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+
+  lda #FS_SB_SIZE - 1 
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jsr crc
+  sta K_BUF + FS_SB_CRC
+
+  ; lets write the superblock to the fram
+  stz K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+
+  stz K_PTR2_LO
+  stz K_PTR2_HI
+
+  lda #FS_SB_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+  
+  jsr FRAM_WRITE_CHUNK
+  bcc :+
+  jmp @error
+:
+
+  clc
+  rts
+
+@error:
   sec
+  rts
+
+@fram_write_error:
+  pla
+  pla
+  sec 
   rts
 
 ; Tombstone a file index entry.
@@ -243,7 +574,7 @@ fs_compact:
 ;      K_LEN = byte count
 ; out: A = CRC byte (store in entry to make 24-byte sum zero)
 ; clobbers: A, flags
-fs_crc:
+crc:
   lda #$00
   sta K_TMP0
 
@@ -268,6 +599,29 @@ fs_crc:
   sbc K_TMP0
 
   clc
+  rts
+
+; Copy K_LEN bytes from K_PTR to K_PTR2.
+; in:  K_PTR  = source address
+;      K_PTR2 = destination address
+;      K_LEN  = byte count
+; clobbers: A, flags, K_PTR, K_PTR2, K_LEN
+mem_copy:
+@loop:
+  lda K_LEN_LO
+  ora K_LEN_HI
+  beq @end
+
+  lda (K_PTR)
+  sta (K_PTR2)
+
+  INC16 K_PTR
+  INC16 K_PTR2
+  DEC16 K_LEN
+
+  jmp @loop
+
+@end:
   rts
 
 print_newline:
@@ -328,9 +682,9 @@ fs_dump:
   jsr hex_dump
   jsr print_newline
 
-  lda K_BUF + FS_SB_INDEX_SIZE
+  lda K_BUF + FS_SB_INDEX_PTR
   sta K_TMP0
-  lda K_BUF + FS_SB_INDEX_SIZE + 1
+  lda K_BUF + FS_SB_INDEX_PTR + 1
   sta K_TMP1
 
   lda #$FF
@@ -339,10 +693,16 @@ fs_dump:
   sta K_PTR2_LO
 
 @index_loop:
-  lda K_TMP0
-  ora K_TMP1
-  beq @done
+  ; stop once K_PTR2 < boundary (K_TMP0/K_TMP1)
+  lda K_PTR2_HI
+  cmp K_TMP1
+  bcc @done
+  bne @process
+  lda K_PTR2_LO
+  cmp K_TMP0
+  bcc @done
 
+@process:
   lda #<K_BUF
   sta K_PTR_LO
   lda #>K_BUF
@@ -371,14 +731,6 @@ fs_dump:
   dec K_PTR2_HI
 @no_borrow_ptr:
 
-  lda K_TMP0
-  sec
-  sbc #FS_ENTRY_SIZE
-  sta K_TMP0
-  bcs @no_borrow_cnt
-  dec K_TMP1
-@no_borrow_cnt:
-
   jmp @index_loop
 
 @done:
@@ -395,8 +747,6 @@ start_index_record:
   .byte $FE
 
 super_block:
-  .byte $FF, $FF ; size of the storage
-  .byte $09, $00 ; end of the reserved area and start of data slab
-  .byte $00, $00 ; bytes used in data slab
-  .byte $30, $00 ; bytes used in index
-  .byte $C9
+  .byte $05, $00 ; next free address in data slab
+  .byte $D0, $FF ; start of the index region
+  .byte $2C
