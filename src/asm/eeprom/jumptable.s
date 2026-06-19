@@ -57,12 +57,3 @@ fram_write_chunk_trampoline:
 
 fram_read_chunk_trampoline:
   jmp fram_read_chunk
-
-add16_ptr_len_trampoline:
-  jmp add16_ptr_len
-
-sub16_ptr_len_trampoline:
-  jmp sub16_ptr_len
-
-add16_ptr2_len_trampoline:
-  jmp add16_ptr2_len

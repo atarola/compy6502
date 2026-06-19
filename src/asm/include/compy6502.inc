@@ -84,11 +84,32 @@ K_LEN_LO = $06
 K_LEN_HI = $07
 K_LEN = K_LEN_LO
 
+; iterator state: cursor, stop boundary, stride, callback ptr
+; kept separate from the transient scratch below since it must
+; survive calls made between _next invocations
+K_ITER_CUR_LO = $08
+K_ITER_CUR_HI = $09
+K_ITER_CUR = K_ITER_CUR_LO
+
+K_ITER_STOP_LO = $0A
+K_ITER_STOP_HI = $0B
+K_ITER_STOP = K_ITER_STOP_LO
+
+K_ITER_STRIDE_LO = $0C
+K_ITER_STRIDE_HI = $0D
+K_ITER_STRIDE = K_ITER_STRIDE_LO
+
+K_ITER_CB_LO = $0E
+K_ITER_CB_HI = $0F
+K_ITER_CB = K_ITER_CB_LO
+
 ; clobberable scratch
-K_TMP0 = $08
-K_TMP1 = $09
-K_TMP2 = $0A
-K_TMP3 = $0B
+K_TMP0 = $1A
+K_TMP1 = $1B
+K_TMP2 = $1C
+K_TMP3 = $1D
+K_TMP4 = $1E
+K_TMP5 = $1F
 
 ; Kernel entry jump table
 ; can `jsr ACIA_GETC` to execute these subroutines
@@ -240,18 +261,6 @@ FRAM_WRITE_CHUNK = JUMP_BASE + (3 * 18)
 ; clobbers: A, Y, flags, K_PTR, K_LEN
 FRAM_READ_CHUNK = JUMP_BASE + (3 * 19)
 
-; K_PTR += K_LEN
-; clobbers: A, flags
-ADD16_PTR_LEN = JUMP_BASE + (3 * 20)
-
-; K_PTR -= K_LEN
-; clobbers: A, flags
-SUB16_PTR_LEN = JUMP_BASE + (3 * 21)
-
-; K_PTR2 += K_LEN
-; clobbers: A, flags
-ADD16_PTR2_LEN = JUMP_BASE + (3 * 22)
-
 ;
 ; Helper macros
 ; 
@@ -269,6 +278,38 @@ ADD16_PTR2_LEN = JUMP_BASE + (3 * 22)
   dec ptr+1
 :
   dec ptr
+.endmacro
+
+; compare two 16-bit lo/hi pairs; sets flags as if by CMP lhs - rhs (BCC/BEQ/BCS usable as a 16-bit comparison)
+.macro CMP16 lhs, rhs
+  lda lhs+1
+  cmp rhs+1
+  bne :+
+  lda lhs
+  cmp rhs
+:
+.endmacro
+
+; dst += src (both 16-bit lo/hi pairs)
+.macro ADD16 dst, src
+  lda dst
+  clc
+  adc src
+  sta dst
+  lda dst+1
+  adc src+1
+  sta dst+1
+.endmacro
+
+; dst -= src (both 16-bit lo/hi pairs)
+.macro SUB16 dst, src
+  lda dst
+  sec
+  sbc src
+  sta dst
+  lda dst+1
+  sbc src+1
+  sta dst+1
 .endmacro
 
 .endif

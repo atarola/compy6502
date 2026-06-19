@@ -87,20 +87,15 @@ FS_SM_CRC           = $17   ; 1 byte
   bcs @error
 
   ; length used = data_ptr - FS_SB_SIZE
-  lda K_BUF + FS_SB_DATA_PTR
-  sta K_PTR_LO
-  lda K_BUF + FS_SB_DATA_PTR + 1
-  sta K_PTR_HI
-
   lda #FS_SB_SIZE
   sta K_LEN_LO
   stz K_LEN_HI
 
-  jsr SUB16_PTR_LEN
+  SUB16 K_BUF + FS_SB_DATA_PTR, K_LEN
 
-  lda K_PTR_LO
+  lda K_BUF + FS_SB_DATA_PTR
   sta K_TMP0
-  lda K_PTR_HI
+  lda K_BUF + FS_SB_DATA_PTR + 1
   sta K_TMP1
 
   lda #<K_BUF
@@ -274,6 +269,103 @@ fs_format:
   sec
   rts
 
+; Find a file by name in the index.
+; in:  K_PTR2 = pascal string filename
+; out: carry clear = success, K_PTR2 = file ID (FRAM address of index entry)
+;      carry set   = not found
+; clobbers: A, X, Y, flags, K_PTR2
+fs_find:
+  lda K_PTR2_LO
+  pha
+  lda K_PTR2_HI
+  pha
+
+  jsr fs_read_sb
+  bcc :+
+  pla
+  pla
+  jmp @error
+:
+
+  lda K_BUF + FS_SB_INDEX_PTR
+  sta K_PTR2_LO
+  lda K_BUF + FS_SB_INDEX_PTR + 1
+  sta K_PTR2_HI
+
+  lda #$FF
+  sta K_TMP2
+  sta K_TMP3
+
+  lda #FS_ENTRY_SIZE
+  jsr iter_init
+
+  pla 
+  sta K_TMP3
+  pla
+  sta K_TMP2
+
+@loop:
+  lda K_PTR2_LO
+  sta K_TMP4
+  lda K_PTR2_HI
+  sta K_TMP5
+
+  ; grab the next index
+  lda #<K_BUF
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+
+  lda #FS_ENTRY_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jsr FRAM_READ_CHUNK
+  bcs @error
+
+  ; compare the input string to the buffer
+  lda K_TMP2
+  sta K_PTR_LO
+  lda K_TMP3
+  sta K_PTR_HI
+
+  lda #>K_BUF
+  sta K_PTR2_HI
+  lda #FS_FILE_NAME
+  sta K_PTR2_LO
+
+  jsr STR_EQ
+  bcc @done 
+
+  ; not eql so continue iteration
+  jsr iter_next
+  bcs @error
+  
+  jmp @loop
+
+@done:
+  lda K_TMP4
+  sta K_PTR2_LO
+  lda K_TMP5
+  sta K_PTR2_HI
+
+  clc
+  rts
+
+@error:
+  sec
+  rts
+
+; Read file data into RAM.
+; in:  K_PTR  = destination RAM address
+;      K_PTR2 = file ID (FRAM address of index entry)
+; out: carry clear = success
+;      carry set   = error
+; clobbers: A, Y, flags, K_PTR, K_LEN
+fs_read:
+  sec
+  rts
+
 ; Read the super block into K_BUF.
 ; in:  none
 ; out: carry clear = success, carry set = error
@@ -292,25 +384,6 @@ fs_read_sb:
   stz K_LEN_HI
 
   jmp FRAM_READ_CHUNK
-
-; Scan index for a file by name.
-; in:  K_PTR  = pascal string filename
-; out: carry clear = found, K_PTR2 = file ID (FRAM address of index entry)
-;      carry set   = not found
-; clobbers: A, flags
-fs_find:
-  sec
-  rts
-
-; Read file data into RAM.
-; in:  K_PTR  = destination RAM address
-;      K_PTR2 = file ID (FRAM address of index entry)
-; out: carry clear = success
-;      carry set   = error
-; clobbers: A, Y, flags, K_PTR, K_LEN
-fs_read:
-  sec
-  rts
 
 ; Append a new file to the volume.
 ; in:  K_PTR  = source RAM address (file data)
@@ -369,38 +442,25 @@ fs_write:
 :
 
   ; calculate where the new free pointer goes
-  lda K_TMP0
-  sta K_LEN_LO
-  lda K_TMP1
-  sta K_LEN_HI
-
+  ; (compute into K_PTR2, not K_TMP2/K_TMP3 -- those still hold the file's
+  ; start address, needed below for FS_FILE_START)
   lda K_TMP2
   sta K_PTR2_LO
   lda K_TMP3
   sta K_PTR2_HI
 
-  jsr ADD16_PTR2_LEN
+  ADD16 K_PTR2, K_TMP0
   lda K_PTR2_LO
   sta K_BUF + FS_SB_DATA_PTR
   lda K_PTR2_HI
   sta K_BUF + FS_SB_DATA_PTR + 1
 
   ; calculate the new index ptr
-  lda K_BUF + FS_SB_INDEX_PTR
-  sta K_PTR_LO
-  lda K_BUF + FS_SB_INDEX_PTR + 1
-  sta K_PTR_HI
-
   stz K_LEN_HI
   lda #FS_ENTRY_SIZE
   sta K_LEN_LO
 
-  jsr SUB16_PTR_LEN
-
-  lda K_PTR_LO
-  sta K_BUF + FS_SB_INDEX_PTR
-  lda K_PTR_HI
-  sta K_BUF + FS_SB_INDEX_PTR + 1
+  SUB16 K_BUF + FS_SB_INDEX_PTR, K_LEN
 
   ; copy the start index record to our buffer
   lda #FS_ENTRY_SIZE 
@@ -740,6 +800,88 @@ fs_dump:
 @error:
   sec
   rts
+
+; Fixed-stride iterator over the index region. State lives in
+; K_ITER_CUR/K_ITER_STOP/K_ITER_STRIDE/K_ITER_CB instead of the transient
+; K_PTR/K_LEN/K_TMP scratch, since it must survive whatever the caller does
+; between calls.
+
+; Set up the iterator cursor, stop boundary, and stride.
+; in:  K_PTR2 = start cursor address
+;      K_TMP2/K_TMP3 = stop boundary address (lo/hi)
+;      A = stride (bytes per step)
+; out: none
+; clobbers: A, flags
+iter_init:
+  sta K_ITER_STRIDE
+
+  lda K_PTR2_LO
+  sta K_ITER_CUR_LO
+  lda K_PTR2_HI
+  sta K_ITER_CUR_HI
+
+  lda K_TMP2
+  sta K_ITER_STOP_LO
+  lda K_TMP3
+  sta K_ITER_STOP_HI
+
+  clc
+  rts
+
+; Advance the iterator and return the next item address.
+; in:  none (uses K_ITER_CUR/K_ITER_STOP/K_ITER_STRIDE)
+; out: carry clear = item available, K_PTR2 = item address
+;      carry set   = iteration complete
+; clobbers: A, flags
+iter_next:
+  ADD16 K_ITER_CUR, K_ITER_STRIDE
+  bcs :+
+
+  CMP16 K_ITER_CUR, K_ITER_STOP
+  bcs :+
+
+  lda K_ITER_CUR_LO
+  sta K_PTR2_LO
+  lda K_ITER_CUR_HI
+  sta K_PTR2_HI
+
+  rts
+:
+  rts
+
+; Walk the iterator to completion, invoking a callback for each item.
+; in:  K_ITER_CB = callback address (called once per item via trampoline,
+;      with K_PTR2 = item address)
+; out: carry clear = success
+;      carry set   = error (propagated from a callback, if any)
+; clobbers: A, X, Y, flags, K_PTR2
+iter_for_each:
+@loop:
+  ADD16 K_ITER_CUR, K_ITER_STRIDE
+  bcs @done
+
+  CMP16 K_ITER_CUR, K_ITER_STOP
+  bcs @done
+
+  lda K_ITER_CUR_LO
+  sta K_PTR2_LO
+  lda K_ITER_CUR_HI
+  sta K_PTR2_HI
+
+  jsr iter_trampoline
+  bcs @error
+  
+  jmp @loop
+
+@error:
+  rts
+
+@done:
+  clc
+  rts
+
+iter_trampoline:
+  jmp (K_ITER_CB)
 
 start_index_record:
   .byte $02
