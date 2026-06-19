@@ -59,28 +59,99 @@ FS_SM_CRC           = $17   ; 1 byte
   sta K_PTR_HI
 
   jsr fs_format
-  bcs @error
+  bcc :+
+  jmp @error
+:
 
-  lda #<file_data
+  lda #<file_a_data
   sta K_PTR_LO
-  lda #>file_data
+  lda #>file_a_data
   sta K_PTR_HI
 
-  lda #<file_name
+  lda #<file_a_name
   sta K_PTR2_LO
-  lda #>file_name
+  lda #>file_a_name
   sta K_PTR2_HI
 
-  lda #<file_data_len
+  lda #<file_a_data_len
   sta K_LEN_LO
-  lda #>file_data_len
+  lda #>file_a_data_len
   sta K_LEN_HI
 
   jsr fs_write
-  bcs @error
+  bcc :+
+  jmp @error
+:
+
+  lda #<file_b_data
+  sta K_PTR_LO
+  lda #>file_b_data
+  sta K_PTR_HI
+
+  lda #<file_b_name
+  sta K_PTR2_LO
+  lda #>file_b_name
+  sta K_PTR2_HI
+
+  lda #<file_b_data_len
+  sta K_LEN_LO
+  lda #>file_b_data_len
+  sta K_LEN_HI
+
+  jsr fs_write
+  bcc :+
+  jmp @error
+:
+
+  lda #<file_c_data
+  sta K_PTR_LO
+  lda #>file_c_data
+  sta K_PTR_HI
+
+  lda #<file_c_name
+  sta K_PTR2_LO
+  lda #>file_c_name
+  sta K_PTR2_HI
+
+  lda #<file_c_data_len
+  sta K_LEN_LO
+  lda #>file_c_data_len
+  sta K_LEN_HI
+
+  jsr fs_write
+  bcc :+
+  jmp @error
+:
 
   jsr fs_dump
+  bcc :+
+  jmp @error
+:
+
+  ; search for each file and print the name of the entry found
+  lda #<file_a_name
+  sta K_PTR2_LO
+  lda #>file_a_name
+  sta K_PTR2_HI
+  jsr fs_find
   bcs @error
+  jsr print_file_name
+
+  lda #<file_b_name
+  sta K_PTR2_LO
+  lda #>file_b_name
+  sta K_PTR2_HI
+  jsr fs_find
+  bcs @error
+  jsr print_file_name
+
+  lda #<file_c_name
+  sta K_PTR2_LO
+  lda #>file_c_name
+  sta K_PTR2_HI
+  jsr fs_find
+  bcs @error
+  jsr print_file_name
 
   ; dump data slab: read from FS_SB_SIZE for (data_ptr - FS_SB_SIZE) bytes
   jsr fs_read_sb
@@ -139,14 +210,29 @@ FS_SM_CRC           = $17   ; 1 byte
 vol_name:
   .byte $05, "hello"
 
-file_name:
-  .byte $04, "test"
+file_a_name:
+  .byte $05, "alpha"
 
-file_data:
-  .byte "hello from fram"
-file_data_end:
+file_b_name:
+  .byte $05, "bravo"
 
-file_data_len = file_data_end - file_data
+file_c_name:
+  .byte $07, "charlie"
+
+file_a_data:
+  .byte "alpha file data"
+file_a_data_end:
+file_a_data_len = file_a_data_end - file_a_data
+
+file_b_data:
+  .byte "bravo file data"
+file_b_data_end:
+file_b_data_len = file_b_data_end - file_b_data
+
+file_c_data:
+  .byte "charlie file data"
+file_c_data_end:
+file_c_data_len = file_c_data_end - file_c_data
 
 ; Initialize a fresh FRAM volume.
 ; in:  K_PTR = pascal string for volume name
@@ -340,7 +426,7 @@ fs_find:
   ; not eql so continue iteration
   jsr iter_next
   bcs @error
-  
+
   jmp @loop
 
 @done:
@@ -715,6 +801,36 @@ hex_dump:
 @end:
   rts
 
+; Read the entry named by K_PTR2 (file ID) and print its name, then a newline.
+; in:  K_PTR2 = file ID (FRAM address of index entry)
+; clobbers: A, X, Y, flags, K_PTR, K_LEN
+print_file_name:
+  lda #<K_BUF
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+
+  lda #FS_ENTRY_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jsr FRAM_READ_CHUNK
+  bcs @done
+
+  ldx K_BUF + FS_FILE_NAME
+  beq @done
+
+  ldy #$01
+@loop:
+  lda K_BUF + FS_FILE_NAME, y
+  jsr ACIA_PUTC
+  iny
+  dex
+  bne @loop
+
+@done:
+  jmp print_newline
+
 ; Dump the super block and all index entries to the ACIA.
 ; in:  none
 ; out: carry clear = success, carry set = error
@@ -814,6 +930,7 @@ fs_dump:
 ; clobbers: A, flags
 iter_init:
   sta K_ITER_STRIDE
+  stz K_ITER_STRIDE_HI
 
   lda K_PTR2_LO
   sta K_ITER_CUR_LO
