@@ -47,6 +47,8 @@ FS_SM_TYPE          = $00   ; 1 byte
                             ; $01: 22 bytes reserved
 FS_SM_CRC           = $17   ; 1 byte
 
+read_target = $6000   ; arbitrary RAM spot, well clear of this program and K_BUF
+
 .org $1000
   jsr FRAM_SETUP
   bcc :+
@@ -63,19 +65,19 @@ FS_SM_CRC           = $17   ; 1 byte
   jmp @error
 :
 
-  lda #<foo_data
+  lda #<greeting_data
   sta K_PTR_LO
-  lda #>foo_data
+  lda #>greeting_data
   sta K_PTR_HI
 
-  lda #<foo_name
+  lda #<greeting_name
   sta K_PTR2_LO
-  lda #>foo_name
+  lda #>greeting_name
   sta K_PTR2_HI
 
-  lda #<foo_data_len
+  lda #<greeting_data_len
   sta K_LEN_LO
-  lda #>foo_data_len
+  lda #>greeting_data_len
   sta K_LEN_HI
 
   jsr fs_write
@@ -83,46 +85,101 @@ FS_SM_CRC           = $17   ; 1 byte
   jmp @error
 :
 
-  lda #<bar_data
-  sta K_PTR_LO
-  lda #>bar_data
-  sta K_PTR_HI
-
-  lda #<bar_name
+  ; find "greeting" -> K_PTR2 = file ID
+  lda #<greeting_name
   sta K_PTR2_LO
-  lda #>bar_name
-  sta K_PTR2_HI
-
-  lda #<bar_data_len
-  sta K_LEN_LO
-  lda #>bar_data_len
-  sta K_LEN_HI
-
-  jsr fs_write
-  bcc :+
-  jmp @error
-:
-
-  ; find "bar"
-  lda #<bar_name
-  sta K_PTR2_LO
-  lda #>bar_name
+  lda #>greeting_name
   sta K_PTR2_HI
 
   jsr fs_find
-  bcs @error
-
-  ; delete "bar" (K_PTR2 already holds the file ID from fs_find)
-  jsr fs_delete
   bcc :+
   jmp @error
 :
 
-  ; dump the superblock and index
-  jsr fs_dump
+  ; update it to say "hellorld" (K_PTR2 already holds the file ID from fs_find)
+  lda #<updated_data
+  sta K_PTR_LO
+  lda #>updated_data
+  sta K_PTR_HI
+
+  lda #<updated_data_len
+  sta K_LEN_LO
+  lda #>updated_data_len
+  sta K_LEN_HI
+
+  jsr fs_update
   bcc :+
   jmp @error
 :
+
+  ; fs_update wrote a new entry, so look up "greeting" again for its new file ID
+  lda #<greeting_name
+  sta K_PTR2_LO
+  lda #>greeting_name
+  sta K_PTR2_HI
+
+  jsr fs_find
+  bcc :+
+  jmp @error
+:
+
+  ; peek at the index entry to stash the file length (fs_read clobbers
+  ; K_LEN without returning it, and overwrites K_BUF itself)
+  lda #<K_BUF
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+
+  lda #FS_ENTRY_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jsr FRAM_READ_CHUNK
+  bcc :+
+  jmp @error
+:
+
+  lda K_BUF + FS_FILE_LEN
+  sta K_TMP0
+  lda K_BUF + FS_FILE_LEN + 1
+  sta K_TMP1
+
+  ; read the file into RAM (K_PTR2 still holds the file ID from fs_find)
+  lda #<read_target
+  sta K_PTR_LO
+  lda #>read_target
+  sta K_PTR_HI
+
+  jsr fs_read
+  bcc :+
+  jmp @error
+:
+
+  ; print the file contents
+  lda #<read_target
+  sta K_PTR_LO
+  lda #>read_target
+  sta K_PTR_HI
+
+  lda K_TMP0
+  sta K_LEN_LO
+  lda K_TMP1
+  sta K_LEN_HI
+
+@print_loop:
+  lda K_LEN_LO
+  ora K_LEN_HI
+  beq @print_done
+
+  lda (K_PTR)
+  jsr ACIA_PUTC
+
+  INC16 K_PTR
+  DEC16 K_LEN
+  jmp @print_loop
+
+@print_done:
+  jsr print_newline
 
   jmp WOZMON
 
@@ -136,21 +193,18 @@ FS_SM_CRC           = $17   ; 1 byte
 vol_name:
   .byte $05, "hello"
 
-foo_name:
-  .byte $03, "foo"
+greeting_name:
+  .byte $08, "greeting"
 
-bar_name:
-  .byte $03, "bar"
+greeting_data:
+  .byte "hello world"
+greeting_data_end:
+greeting_data_len = greeting_data_end - greeting_data
 
-foo_data:
-  .byte "foo file data"
-foo_data_end:
-foo_data_len = foo_data_end - foo_data
-
-bar_data:
-  .byte "bar file data"
-bar_data_end:
-bar_data_len = bar_data_end - bar_data
+updated_data:
+  .byte "hellorld"
+updated_data_end:
+updated_data_len = updated_data_end - updated_data
 
 ; Initialize a fresh FRAM volume.
 ; in:  K_PTR = pascal string for volume name
@@ -367,6 +421,50 @@ fs_find:
 ;      carry set   = error
 ; clobbers: A, Y, flags, K_PTR, K_LEN
 fs_read:
+  lda K_PTR_LO
+  sta K_TMP4
+  lda K_PTR_HI
+  sta K_TMP5
+
+  ; grab the record from the fram
+  lda #>K_BUF
+  sta K_PTR_HI
+  stz K_PTR_LO
+
+  stz K_LEN_HI
+  lda #FS_ENTRY_SIZE
+  sta K_LEN_LO
+
+  jsr FRAM_READ_CHUNK
+  bcc :+
+  jmp @error
+:
+
+  ; ram address
+  lda K_TMP4
+  sta K_PTR_LO
+  lda K_TMP5
+  sta K_PTR_HI
+
+  ; fram address
+  lda K_BUF + FS_FILE_START
+  sta K_PTR2_LO
+  lda K_BUF + FS_FILE_START + 1
+  sta K_PTR2_HI
+
+  ; grab the file size 
+  lda K_BUF + FS_FILE_LEN
+  sta K_LEN_LO
+  lda K_BUF + FS_FILE_LEN + 1
+  sta K_LEN_HI
+
+  jsr FRAM_READ_CHUNK
+  bcs @error
+
+  clc
+  rts
+
+@error:
   sec
   rts
 
@@ -667,8 +765,90 @@ fs_delete:
 ;      K_LEN  = new file length in bytes
 ; out: carry clear = success
 ;      carry set   = error
-; clobbers: A, Y, flags, K_PTR, K_LEN
+; clobbers: A, X, Y, flags, K_PTR, K_PTR2, K_LEN, K_TMP0, K_TMP1, K_TMP2, K_TMP3, K_TMP4, K_TMP5
 fs_update:
+  ; stash the new file's source and length while we look up the old name
+  lda K_PTR_LO
+  pha
+  lda K_PTR_HI
+  pha
+  lda K_LEN_LO
+  pha
+  lda K_LEN_HI
+  pha
+
+  ; stash the file ID, then read the old entry so we can recover its name
+  lda K_PTR2_LO
+  sta K_TMP4
+  lda K_PTR2_HI
+  sta K_TMP5
+
+  lda #<K_BUF
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+
+  lda #FS_ENTRY_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jsr FRAM_READ_CHUNK
+  bcc :+
+  pla
+  pla
+  pla
+  pla
+  jmp @error
+:
+
+  ; stash the filename past where fs_delete/fs_write touch K_BUF
+  ; (they only use offsets 0-71; FS_ENTRY_SIZE*3 = 72 lands just past that)
+  lda #<(K_BUF + (FS_ENTRY_SIZE * 3))
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+
+  lda #<K_BUF + FS_FILE_NAME
+  sta K_PTR2_LO
+  lda #>K_BUF
+  sta K_PTR2_HI
+
+  jsr STR_COPY
+
+  ; delete the old entry (file ID stashed in K_TMP4/K_TMP5)
+  lda K_TMP4
+  sta K_PTR2_LO
+  lda K_TMP5
+  sta K_PTR2_HI
+
+  jsr fs_delete
+  bcc :+
+  pla
+  pla
+  pla
+  pla
+  jmp @error
+:
+
+  ; restore the new file's source and length
+  pla
+  sta K_LEN_HI
+  pla
+  sta K_LEN_LO
+  pla
+  sta K_PTR_HI
+  pla
+  sta K_PTR_LO
+
+  ; write the new content back under the old name
+  lda #<(K_BUF + (FS_ENTRY_SIZE * 3))
+  sta K_PTR2_LO
+  lda #>K_BUF
+  sta K_PTR2_HI
+
+  jmp fs_write
+
+@error:
   sec
   rts
 
