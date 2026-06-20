@@ -112,7 +112,25 @@ read_target = $6000   ; arbitrary RAM spot, well clear of this program and K_BUF
   jmp @error
 :
 
-  ; fs_update wrote a new entry, so look up "greeting" again for its new file ID
+  ; dump before compacting, to show the orphaned entry/data fs_update left behind
+  jsr fs_dump
+  bcc :+
+  jmp @error
+:
+
+  ; compact -- reclaims the deleted "hello world" entry and its data slab bytes
+  jsr fs_compact
+  bcc :+
+  jmp @error
+:
+
+  ; dump again to show the index/superblock shrank
+  jsr fs_dump
+  bcc :+
+  jmp @error
+:
+
+  ; fs_compact (like fs_update) relocates entries, so look up "greeting" again
   lda #<greeting_name
   sta K_PTR2_LO
   lda #>greeting_name
@@ -852,12 +870,277 @@ fs_update:
   sec
   rts
 
+COMPACT_CHUNK = 64   ; per-file data copy chunk size, staged at K_BUF + FS_ENTRY_SIZE
+
 ; Defragment the data slab and rebuild the index.
+;
+; K_TMP2/K_TMP3 = index write-cursor, K_TMP4/K_TMP5 = slab write-cursor
+; (high-water mark); both persist for the whole routine. K_TMP0/K_TMP1
+; track the current file's old data pointer while copying. K_BUF holds
+; the entry being processed at offset 0, a COMPACT_CHUNK-sized data
+; staging buffer at offset FS_ENTRY_SIZE, and the new slab position for
+; the current file (stashed before the copy loop advances K_TMP4/K_TMP5)
+; at offset FS_ENTRY_SIZE + COMPACT_CHUNK.
+;
 ; in:  none
 ; out: carry clear = success
 ;      carry set   = error
-; clobbers: A, Y, flags
+; clobbers: A, X, Y, flags, K_PTR, K_PTR2, K_LEN, K_TMP0, K_TMP1, K_TMP2, K_TMP3, K_TMP4, K_TMP5
 fs_compact:
+  jsr fs_read_sb
+  bcc :+
+  jmp @error
+:
+
+  ; stop boundary for the downward walk = the current (pre-compaction) index_ptr
+  lda K_BUF + FS_SB_INDEX_PTR
+  sta K_TMP2
+  lda K_BUF + FS_SB_INDEX_PTR + 1
+  sta K_TMP3
+
+  ; seed = $FFD0, the first real entry just below the fixed VOL_ID slot at $FFE8
+  lda #$FF
+  sta K_PTR2_HI
+  lda #$FF - (FS_ENTRY_SIZE * 2 - 1)
+  sta K_PTR2_LO
+
+  lda #FS_ENTRY_SIZE
+  jsr iter_init
+
+  ; index write-cursor starts at the same seed
+  lda #$FF
+  sta K_TMP3
+  lda #$FF - (FS_ENTRY_SIZE * 2 - 1)
+  sta K_TMP2
+
+  ; slab write-cursor (high-water mark) starts right after the superblock
+  lda #FS_SB_SIZE
+  sta K_TMP4
+  stz K_TMP5
+
+@loop:
+  ; read the entry at the read-cursor (K_PTR2) into K_BUF
+  lda #<K_BUF
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+
+  lda #FS_ENTRY_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jsr FRAM_READ_CHUNK
+  bcc :+
+  jmp @error
+:
+
+  ; anything but a live file (deleted, or the trailing start-stub) is
+  ; reclaimed by simply not carrying it forward
+  lda K_BUF + FS_FILE_TYPE
+  cmp #FS_ENTRY_FILE
+  beq :+
+  jmp @advance
+:
+
+  ; stash this file's new slab position before the copy loop moves
+  ; K_TMP4/K_TMP5 forward
+  lda K_TMP4
+  sta K_BUF + FS_ENTRY_SIZE + COMPACT_CHUNK
+  lda K_TMP5
+  sta K_BUF + FS_ENTRY_SIZE + COMPACT_CHUNK + 1
+
+  ; moving read-pointer over the file's old data, starts at its old start
+  lda K_BUF + FS_FILE_START
+  sta K_TMP0
+  lda K_BUF + FS_FILE_START + 1
+  sta K_TMP1
+
+@copy_loop:
+  ; remaining = FS_FILE_LEN - (K_TMP0/K_TMP1 - FS_FILE_START)
+  lda K_TMP0
+  sta K_PTR2_LO
+  lda K_TMP1
+  sta K_PTR2_HI
+  SUB16 K_PTR2, K_BUF + FS_FILE_START
+
+  lda K_BUF + FS_FILE_LEN
+  sta K_LEN_LO
+  lda K_BUF + FS_FILE_LEN + 1
+  sta K_LEN_HI
+  SUB16 K_LEN, K_PTR2
+
+  lda K_LEN_LO
+  ora K_LEN_HI
+  beq @copy_done
+
+  ; this chunk = min(remaining, COMPACT_CHUNK)
+  lda K_LEN_HI
+  bne @full_chunk
+  lda K_LEN_LO
+  cmp #COMPACT_CHUNK + 1
+  bcc @chunk_size_set
+@full_chunk:
+  lda #COMPACT_CHUNK
+@chunk_size_set:
+  tax
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  ; read the chunk from the old location into K_BUF's staging area
+  lda K_TMP0
+  sta K_PTR2_LO
+  lda K_TMP1
+  sta K_PTR2_HI
+
+  lda #<(K_BUF + FS_ENTRY_SIZE)
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+
+  jsr FRAM_READ_CHUNK
+  bcc :+
+  jmp @error
+:
+
+  ; write it out to the slab write-cursor
+  txa
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  lda K_TMP4
+  sta K_PTR2_LO
+  lda K_TMP5
+  sta K_PTR2_HI
+
+  lda #<(K_BUF + FS_ENTRY_SIZE)
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+
+  jsr FRAM_WRITE_CHUNK
+  bcc :+
+  jmp @error
+:
+
+  ; advance the old-data read-pointer and the slab write-cursor by the chunk
+  txa
+  sta K_LEN_LO
+  stz K_LEN_HI
+  ADD16 K_TMP0, K_LEN
+  ADD16 K_TMP4, K_LEN
+
+  jmp @copy_loop
+
+@copy_done:
+  ; patch FS_FILE_START to the stashed new slab position
+  lda K_BUF + FS_ENTRY_SIZE + COMPACT_CHUNK
+  sta K_BUF + FS_FILE_START
+  lda K_BUF + FS_ENTRY_SIZE + COMPACT_CHUNK + 1
+  sta K_BUF + FS_FILE_START + 1
+
+  ; recompute the entry CRC
+  lda #<K_BUF
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+
+  lda #(FS_ENTRY_SIZE - 1)
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jsr crc
+  sta K_BUF + FS_FILE_CRC
+
+  ; write the entry to the index write-cursor
+  lda K_TMP2
+  sta K_PTR2_LO
+  lda K_TMP3
+  sta K_PTR2_HI
+
+  lda #<K_BUF
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+
+  lda #FS_ENTRY_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jsr FRAM_WRITE_CHUNK
+  bcs @error
+
+  ; advance the index write-cursor
+  lda #FS_ENTRY_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+  SUB16 K_TMP2, K_LEN
+
+@advance:
+  jsr iter_next_down
+  bcs :+
+  jmp @loop
+:
+
+  ; iteration complete -- write a fresh start-stub at the final index
+  ; write-cursor
+  lda #<start_index_record
+  sta K_PTR_LO
+  lda #>start_index_record
+  sta K_PTR_HI
+
+  lda K_TMP2
+  sta K_PTR2_LO
+  lda K_TMP3
+  sta K_PTR2_HI
+
+  lda #FS_ENTRY_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jsr FRAM_WRITE_CHUNK
+  bcs @error
+
+  ; build and write the new superblock
+  lda K_TMP4
+  sta K_BUF + FS_SB_DATA_PTR
+  lda K_TMP5
+  sta K_BUF + FS_SB_DATA_PTR + 1
+  lda K_TMP2
+  sta K_BUF + FS_SB_INDEX_PTR
+  lda K_TMP3
+  sta K_BUF + FS_SB_INDEX_PTR + 1
+
+  lda #<K_BUF
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+
+  lda #FS_SB_SIZE - 1
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jsr crc
+  sta K_BUF + FS_SB_CRC
+
+  lda #<K_BUF
+  sta K_PTR_LO
+  lda #>K_BUF
+  sta K_PTR_HI
+
+  stz K_PTR2_LO
+  stz K_PTR2_HI
+
+  lda #FS_SB_SIZE
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jsr FRAM_WRITE_CHUNK
+  bcs @error
+
+  clc
+  rts
+
+@error:
   sec
   rts
 
@@ -1110,6 +1393,35 @@ iter_next:
 
   rts
 :
+  rts
+
+; Advance the iterator downward and return the next item address.
+; Counterpart to iter_next for walking toward lower addresses (e.g.
+; compacting the index oldest-to-newest). iter_init covers both
+; directions unchanged -- only the advance/stop direction differs, so
+; there's no iter_init_down.
+; in:  none (uses K_ITER_CUR/K_ITER_STOP/K_ITER_STRIDE)
+; out: carry clear = item available, K_PTR2 = item address
+;      carry set   = iteration complete
+; clobbers: A, flags
+iter_next_down:
+  SUB16 K_ITER_CUR, K_ITER_STRIDE
+  bcc @done             ; borrow -- wrapped past $0000
+
+  CMP16 K_ITER_CUR, K_ITER_STOP
+  bcc @done             ; CUR < STOP
+  beq @done             ; CUR == STOP -- boundary itself is excluded
+
+  lda K_ITER_CUR_LO
+  sta K_PTR2_LO
+  lda K_ITER_CUR_HI
+  sta K_PTR2_HI
+
+  clc
+  rts
+
+@done:
+  sec
   rts
 
 ; Walk the iterator to completion, invoking a callback for each item.
