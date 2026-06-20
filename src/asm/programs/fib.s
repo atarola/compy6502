@@ -35,7 +35,7 @@ loop:
   jmp loop
 
 end:
-  jmp $F500 ; back to wozmon
+  jmp WOZMON ; back to wozmon
 
 peek:
   lda BASE,x

@@ -95,7 +95,7 @@ POINTER = $2D
   lda #$0A
   jsr ACIA_PUTC
 
-  jmp $F500 ; back to wozmon
+  jmp WOZMON ; back to wozmon
 
 print_u8:
   phx

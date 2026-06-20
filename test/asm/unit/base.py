@@ -134,6 +134,11 @@ class TestMPU(mpu65c02.MPU):
         device.install(self.memory)
         return device
 
+    def install_fram(self, fram=None):
+        device = FramSpiDevice(fram)
+        device.install(self.memory)
+        return device
+
     def register_line(self):
         return f"PC={self.pc:04X} A={self.a:02X} X={self.x:02X} Y={self.y:02X}"
 
@@ -235,4 +240,68 @@ class SpiDevice:
         elif cs_was and not cs_now and self._current_txn is not None:
             self._transactions.append(self._current_txn)
             self._current_txn = None
+        return value
+
+
+FRAM_CMD_WREN = 0x06
+FRAM_CMD_READ = 0x03
+FRAM_CMD_WRITE = 0x02
+
+
+class FramSpiDevice:
+    """Emulates the FRAM's command protocol (kernel/fram.s) against a real
+    backing store, so multi-step filesystem operations (write then read
+    back, etc.) behave like the real chip instead of returning canned data.
+    """
+
+    def __init__(self, fram=None):
+        self.fram = fram if fram is not None else bytearray(0x10000)
+        self.config_reg = 0x00
+        self._byte_index = 0
+        self._cmd = None
+        self._addr = 0
+        self._next_read = 0x00
+
+    def install(self, memory):
+        memory.subscribe_to_read([SPI_STATUS], self.read_status)
+        memory.subscribe_to_read([SPI_DATA], self.read_data)
+        memory.subscribe_to_write([SPI_DATA], self.write_data)
+        memory.subscribe_to_write([SPI_CONFIG], self.write_config)
+
+    def read_status(self, address):
+        return 0x00
+
+    def read_data(self, address):
+        return self._next_read
+
+    def write_config(self, address, value):
+        cs_was = bool(self.config_reg & SPI_CS_ENABLE)
+        cs_now = bool(value & SPI_CS_ENABLE)
+        self.config_reg = value
+        if not cs_was and cs_now:
+            self._byte_index = 0
+            self._cmd = None
+        return value
+
+    def write_data(self, address, value):
+        if self._byte_index == 0:
+            self._cmd = value
+            self._next_read = 0x00
+        elif self._cmd in (FRAM_CMD_READ, FRAM_CMD_WRITE) and self._byte_index == 1:
+            self._addr = value << 8
+            self._next_read = 0x00
+        elif self._cmd in (FRAM_CMD_READ, FRAM_CMD_WRITE) and self._byte_index == 2:
+            self._addr = (self._addr & 0xFF00) | value
+            self._next_read = 0x00
+        elif self._cmd == FRAM_CMD_WRITE:
+            self.fram[self._addr & 0xFFFF] = value
+            self._addr = (self._addr + 1) & 0xFFFF
+            self._next_read = 0x00
+        elif self._cmd == FRAM_CMD_READ:
+            self._next_read = self.fram[self._addr & 0xFFFF]
+            self._addr = (self._addr + 1) & 0xFFFF
+        else:
+            self._next_read = 0x00
+
+        self._byte_index += 1
         return value

@@ -1,3 +1,6 @@
+wozmon_trampoline:
+  jmp WOZMON_START
+
 acia_putc_trampoline:
   jmp acia_putc
 
@@ -57,3 +60,57 @@ fram_write_chunk_trampoline:
 
 fram_read_chunk_trampoline:
   jmp fram_read_chunk
+
+crc_trampoline:
+  jmp crc
+
+mem_copy_trampoline:
+  jmp mem_copy
+
+iter_init_trampoline:
+  jmp iter_init
+
+iter_next_trampoline:
+  jmp iter_next
+
+iter_next_down_trampoline:
+  jmp iter_next_down
+
+iter_for_each_trampoline:
+  jmp iter_for_each
+
+hex_dump_trampoline:
+  jmp hex_dump
+
+print_newline_trampoline:
+  jmp print_newline
+
+print_file_name_trampoline:
+  jmp print_file_name
+
+fs_format_trampoline:
+  jmp fs_format
+
+fs_find_trampoline:
+  jmp fs_find
+
+fs_read_trampoline:
+  jmp fs_read
+
+fs_read_sb_trampoline:
+  jmp fs_read_sb
+
+fs_write_trampoline:
+  jmp fs_write
+
+fs_delete_trampoline:
+  jmp fs_delete
+
+fs_update_trampoline:
+  jmp fs_update
+
+fs_compact_trampoline:
+  jmp fs_compact
+
+fs_dump_trampoline:
+  jmp fs_dump

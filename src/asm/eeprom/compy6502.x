@@ -4,7 +4,6 @@ MEMORY {
 
 SEGMENTS {
     JUMPTABLE: load = ROM, type = ro, start = $C100;
-    KERNEL:    load = ROM, type = ro, start = $C200;
-    WOZMON:    load = ROM, type = ro, start = $F500;
+    KERNEL:    load = ROM, type = ro, start = $C300;
     VECTORS:   load = ROM, type = ro, start = $FFFA;
 }

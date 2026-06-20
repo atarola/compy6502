@@ -244,3 +244,39 @@ nibble_to_hex:
   clc
   adc #'0'
   rts
+
+; Print a CRLF to the ACIA.
+; in:  none
+; out: none
+; clobbers: A, flags
+print_newline:
+  lda #$0D
+  jsr ACIA_PUTC
+  lda #$0A
+  jsr ACIA_PUTC
+  rts
+
+; Print a buffer as space-separated ASCII hex bytes.
+; in:  K_PTR = buffer, K_LEN = byte count
+; clobbers: A, X, flags, K_PTR, K_LEN
+hex_dump:
+@loop:
+  lda K_LEN_LO
+  ora K_LEN_HI
+  beq @end
+
+  lda (K_PTR)
+  jsr BYTE_TO_HEX
+  jsr ACIA_PUTC
+  txa
+  jsr ACIA_PUTC
+
+  lda #' '
+  jsr ACIA_PUTC
+
+  INC16 K_PTR
+  DEC16 K_LEN
+  jmp @loop
+
+@end:
+  rts
