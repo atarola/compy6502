@@ -17,7 +17,7 @@ FRAM_CMD_RDID  = $9F
 
 .org $0900
 fram_string:
-  .byte $0D, $0A, "hi claude!", $0D, $0A, $00
+  .byte $0D, $0A, "your mom!", $0D, $0A, $00
 fram_string_end:
 
 FRAM_STR_LEN = (fram_string_end - fram_string)

@@ -2,12 +2,15 @@
 
 import argparse
 import re
-from typing import TextIO
+from typing import Iterator, TextIO
 from pathlib import Path
 
 #
 # parse a ca65 .lst file and output a set of motorola srects.
 #
+
+MAX_CHUNK = 64  # comfortably under the SREC_LOAD loader's ~123-byte line limit
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -32,15 +35,36 @@ def convert_file(in_file: TextIO, out_file: TextIO, target: str) -> None:
     target_id = {"sram": 0x00, "fram": 0x01}[target]
     print(srecord("0", 0, [target_id]), file=out_file)
 
+    image: list[int | None] = [None] * 0x10000
+
     for line in in_file:
         parsed = parse_line(line)
         if parsed is None:
             continue
 
         addr, data = parsed
-        print(srecord("1", addr, data), file=out_file)
+        for offset, byte in enumerate(data):
+            image[addr + offset] = byte
+
+    for addr, chunk in iter_runs(image):
+        print(srecord("1", addr, chunk), file=out_file)
 
     print(srecord("9", 0, []), file=out_file)
+
+
+def iter_runs(image: list[int | None]) -> Iterator[tuple[int, list[int]]]:
+    addr = 0
+    while addr < len(image):
+        if image[addr] is None:
+            addr += 1
+            continue
+
+        run = []
+        while addr < len(image) and image[addr] is not None and len(run) < MAX_CHUNK:
+            run.append(image[addr])
+            addr += 1
+
+        yield addr - len(run), run
 
 
 def parse_line(line: str) -> tuple[int, list[int]] | None:

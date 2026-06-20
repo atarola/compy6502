@@ -63,19 +63,19 @@ FS_SM_CRC           = $17   ; 1 byte
   jmp @error
 :
 
-  lda #<file_a_data
+  lda #<foo_data
   sta K_PTR_LO
-  lda #>file_a_data
+  lda #>foo_data
   sta K_PTR_HI
 
-  lda #<file_a_name
+  lda #<foo_name
   sta K_PTR2_LO
-  lda #>file_a_name
+  lda #>foo_name
   sta K_PTR2_HI
 
-  lda #<file_a_data_len
+  lda #<foo_data_len
   sta K_LEN_LO
-  lda #>file_a_data_len
+  lda #>foo_data_len
   sta K_LEN_HI
 
   jsr fs_write
@@ -83,19 +83,19 @@ FS_SM_CRC           = $17   ; 1 byte
   jmp @error
 :
 
-  lda #<file_b_data
+  lda #<bar_data
   sta K_PTR_LO
-  lda #>file_b_data
+  lda #>bar_data
   sta K_PTR_HI
 
-  lda #<file_b_name
+  lda #<bar_name
   sta K_PTR2_LO
-  lda #>file_b_name
+  lda #>bar_name
   sta K_PTR2_HI
 
-  lda #<file_b_data_len
+  lda #<bar_data_len
   sta K_LEN_LO
-  lda #>file_b_data_len
+  lda #>bar_data_len
   sta K_LEN_HI
 
   jsr fs_write
@@ -103,100 +103,26 @@ FS_SM_CRC           = $17   ; 1 byte
   jmp @error
 :
 
-  lda #<file_c_data
-  sta K_PTR_LO
-  lda #>file_c_data
-  sta K_PTR_HI
-
-  lda #<file_c_name
+  ; find "bar"
+  lda #<bar_name
   sta K_PTR2_LO
-  lda #>file_c_name
+  lda #>bar_name
   sta K_PTR2_HI
 
-  lda #<file_c_data_len
-  sta K_LEN_LO
-  lda #>file_c_data_len
-  sta K_LEN_HI
+  jsr fs_find
+  bcs @error
 
-  jsr fs_write
+  ; delete "bar" (K_PTR2 already holds the file ID from fs_find)
+  jsr fs_delete
   bcc :+
   jmp @error
 :
 
+  ; dump the superblock and index
   jsr fs_dump
   bcc :+
   jmp @error
 :
-
-  ; search for each file and print the name of the entry found
-  lda #<file_a_name
-  sta K_PTR2_LO
-  lda #>file_a_name
-  sta K_PTR2_HI
-  jsr fs_find
-  bcs @error
-  jsr print_file_name
-
-  lda #<file_b_name
-  sta K_PTR2_LO
-  lda #>file_b_name
-  sta K_PTR2_HI
-  jsr fs_find
-  bcs @error
-  jsr print_file_name
-
-  lda #<file_c_name
-  sta K_PTR2_LO
-  lda #>file_c_name
-  sta K_PTR2_HI
-  jsr fs_find
-  bcs @error
-  jsr print_file_name
-
-  ; dump data slab: read from FS_SB_SIZE for (data_ptr - FS_SB_SIZE) bytes
-  jsr fs_read_sb
-  bcs @error
-
-  ; length used = data_ptr - FS_SB_SIZE
-  lda #FS_SB_SIZE
-  sta K_LEN_LO
-  stz K_LEN_HI
-
-  SUB16 K_BUF + FS_SB_DATA_PTR, K_LEN
-
-  lda K_BUF + FS_SB_DATA_PTR
-  sta K_TMP0
-  lda K_BUF + FS_SB_DATA_PTR + 1
-  sta K_TMP1
-
-  lda #<K_BUF
-  sta K_PTR_LO
-  lda #>K_BUF
-  sta K_PTR_HI
-
-  lda #FS_SB_SIZE
-  sta K_PTR2_LO
-  stz K_PTR2_HI
-
-  lda K_TMP0
-  sta K_LEN_LO
-  lda K_TMP1
-  sta K_LEN_HI
-
-  jsr FRAM_READ_CHUNK
-  bcs @error
-
-  lda #<K_BUF
-  sta K_PTR_LO
-  lda #>K_BUF
-  sta K_PTR_HI
-  lda K_TMP0
-  sta K_LEN_LO
-  lda K_TMP1
-  sta K_LEN_HI
-
-  jsr hex_dump
-  jsr print_newline
 
   jmp WOZMON
 
@@ -210,29 +136,21 @@ FS_SM_CRC           = $17   ; 1 byte
 vol_name:
   .byte $05, "hello"
 
-file_a_name:
-  .byte $05, "alpha"
+foo_name:
+  .byte $03, "foo"
 
-file_b_name:
-  .byte $05, "bravo"
+bar_name:
+  .byte $03, "bar"
 
-file_c_name:
-  .byte $07, "charlie"
+foo_data:
+  .byte "foo file data"
+foo_data_end:
+foo_data_len = foo_data_end - foo_data
 
-file_a_data:
-  .byte "alpha file data"
-file_a_data_end:
-file_a_data_len = file_a_data_end - file_a_data
-
-file_b_data:
-  .byte "bravo file data"
-file_b_data_end:
-file_b_data_len = file_b_data_end - file_b_data
-
-file_c_data:
-  .byte "charlie file data"
-file_c_data_end:
-file_c_data_len = file_c_data_end - file_c_data
+bar_data:
+  .byte "bar file data"
+bar_data_end:
+bar_data_len = bar_data_end - bar_data
 
 ; Initialize a fresh FRAM volume.
 ; in:  K_PTR = pascal string for volume name
@@ -690,8 +608,56 @@ fs_write:
 ; in:  K_PTR2 = file ID (FRAM address of index entry)
 ; out: carry clear = success
 ;      carry set   = error
-; clobbers: A, flags
+; clobbers: A, flags, K_PTR, K_LEN, K_TMP0
 fs_delete:
+  ; grab the record from the fram
+  lda #>K_BUF
+  sta K_PTR_HI
+  stz K_PTR_LO
+
+  stz K_LEN_HI
+  lda #FS_ENTRY_SIZE
+  sta K_LEN_LO
+
+  jsr FRAM_READ_CHUNK
+  bcc :+
+  jmp @error
+:
+
+  ; set the marker to deleted
+  lda #FS_ENTRY_FILE_DEL
+  sta K_BUF + FS_FILE_TYPE
+
+  ; time to crc the whole thing
+  lda #>K_BUF
+  sta K_PTR_HI
+  stz K_PTR_LO
+
+  lda #(FS_ENTRY_SIZE - 1)
+  sta K_LEN_LO
+  stz K_LEN_HI
+
+  jsr crc
+  sta K_BUF + FS_FILE_CRC
+
+  ; write the whole thing back to fram
+  lda #>K_BUF
+  sta K_PTR_HI
+  stz K_PTR_LO
+
+  stz K_LEN_HI
+  lda #FS_ENTRY_SIZE
+  sta K_LEN_LO
+
+  jsr FRAM_WRITE_CHUNK
+  bcc :+
+  jmp @error
+:
+
+  clc
+  rts
+
+@error:
   sec
   rts
 
