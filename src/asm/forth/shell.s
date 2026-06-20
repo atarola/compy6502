@@ -164,9 +164,15 @@ resolve_interpret_word:
   ; reserve the next token now so the definition can refer to itself later
   sta COMP_RESERVED_TOKEN
   inc DICT_NEXT_TOKEN
+
+  ; reset compiler stacks so an unclosed begin/if/while from a previously
+  ; aborted definition can't leak into this one and clobber COMP_WORD_BUF
+  INIT_COMP_BACK_STACK
+  INIT_COMP_FIX_STACK
+
   lda #STATE_WORD_CAPTURE
   sta SHELL_MODE
-  rts 
+  rts
 
 @too_many_words:
   jmp shell_error

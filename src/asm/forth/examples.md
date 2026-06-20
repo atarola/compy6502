@@ -19,6 +19,7 @@ def fibonnacci
     next_term
     print
     dup
+    B520
     eql
   until
 enddef
