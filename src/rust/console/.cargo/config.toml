@@ -2,6 +2,9 @@
 # runner = "probe-rs run --chip RP2040" # for jtag
 runner = "bash tools/flash.sh" # for elf2uf2
 
+[target.thumbv6m-none-eabi]
+linker = "rust-lld"
+
 [build]
 target = "thumbv6m-none-eabi"        # Cortex-M0 and Cortex-M0+
 

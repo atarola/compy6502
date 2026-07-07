@@ -1,9 +1,8 @@
 use embassy_executor::{Executor, Spawner};
+use embassy_rp::multicore::{spawn_core1, Stack};
+use embassy_rp::peripherals::{CORE1, PIN_0, PIN_1, PIN_2, PIN_3, PIO0};
+use embassy_rp::pio::{Config, Direction as PioDirection, Pio, ShiftDirection};
 use embassy_rp::Peri;
-use embassy_time::Timer;
-use embassy_rp::multicore::{Stack, spawn_core1};
-use embassy_rp::pac;
-use embassy_rp::peripherals::CORE1;
 use static_cell::StaticCell;
 
 use crate::keyboard::KeyboardHandle;
@@ -19,103 +18,133 @@ const MODE_GRAPHICS: u8 = 0x01;
 
 enum State {
     Idle,
-    SendStatus,
-    SendChar,
     ReceiveChar,
     ReceiveMode,
 }
 
 static mut CORE1_STACK: Stack<4096> = Stack::new();
 
-pub fn host_init(spawner: Spawner, core1: Peri<'static, CORE1>) {
-    spawner.spawn(echo_task()).unwrap();
+pub fn host_init(
+    _spawner: Spawner,
+    core1: Peri<'static, CORE1>,
+    pio0: Pio<'static, PIO0>,
+    pin_miso: Peri<'static, PIN_0>,
+    pin_cs: Peri<'static, PIN_1>,
+    pin_sck: Peri<'static, PIN_2>,
+    pin_mosi: Peri<'static, PIN_3>,
+) {
     spawn_core1(core1, unsafe { &mut *(&raw mut CORE1_STACK) }, move || {
         static EXECUTOR: StaticCell<Executor> = StaticCell::new();
         EXECUTOR.init(Executor::new()).run(|spawner| {
-            spawner.spawn(host_task()).unwrap();
+            spawner.spawn(host_task(pio0, pin_miso, pin_cs, pin_sck, pin_mosi)).unwrap();
         });
     });
 }
 
 #[embassy_executor::task]
-async fn echo_task() {
-    let keyboard = KeyboardHandle::new();
-    let text = TextHandle::new();
-    loop {
-        if let Some(c) = keyboard.get_char().await {
-            text.put_char(c).await;
-        }
-        Timer::after_millis(10).await;
-    }
-}
+async fn host_task(
+    pio: Pio<'static, PIO0>,
+    pin_miso: Peri<'static, PIN_0>,
+    pin_cs: Peri<'static, PIN_1>,
+    pin_sck: Peri<'static, PIN_2>,
+    pin_mosi: Peri<'static, PIN_3>,
+) {
+    let prg = ::pio::pio_asm!(
+        r#"
+            capture:
+                pull block
+                wait 0 gpio 1
+            byte:
+                set x, 7
+            bitloop:
+                out pins, 1
+                wait 1 gpio 2
+                in pins, 1
+                wait 0 gpio 2
+                jmp x-- bitloop
+                push
+                jmp pin capture
+                pull block
+                jmp byte
+        "#
+    );
 
-#[embassy_executor::task]
-async fn host_task() {
-    for pin in 0..4usize {
-        pac::IO_BANK0.gpio(pin).ctrl().write(|w| w.set_funcsel(1));
-    }
+    let mut common = pio.common;
+    let mut sm = pio.sm0;
+    let pin_miso = common.make_pio_pin(pin_miso);
+    let pin_cs = common.make_pio_pin(pin_cs);
+    let pin_sck = common.make_pio_pin(pin_sck);
+    let pin_mosi = common.make_pio_pin(pin_mosi);
+    let prg = common.load_program(&prg.program);
 
-    pac::SPI0.cr1().write(|w| {
-        w.set_ms(false);
-        w.set_sse(false);
-    });
+    sm.set_pin_dirs(PioDirection::Out, &[&pin_miso]);
+    sm.set_pin_dirs(PioDirection::In, &[&pin_cs, &pin_sck, &pin_mosi]);
 
-    pac::SPI0.cr0().write(|w| {
-        w.set_dss(7);
-        w.set_frf(0);
-        w.set_spo(false);
-        w.set_sph(false);
-        w.set_scr(0);
-    });
-
-    pac::SPI0.cpsr().write(|w| w.set_cpsdvsr(2));
-
-    pac::SPI0.cr1().write(|w| {
-        w.set_ms(true);
-        w.set_sse(true);
-    });
+    let mut cfg = Config::default();
+    cfg.set_in_pins(&[&pin_mosi]);
+    cfg.set_out_pins(&[&pin_miso]);
+    cfg.set_jmp_pin(&pin_cs);
+    cfg.shift_in.direction = ShiftDirection::Left;
+    cfg.shift_out.direction = ShiftDirection::Left;
+    cfg.use_program(&prg, &[]);
+    sm.set_config(&cfg);
+    sm.tx().push(0);
+    sm.set_enable(true);
 
     let mut state = State::Idle;
-    let mut tx_byte: u8 = 0;
     let mut mode = MODE_TEXT;
 
-    while !pac::SPI0.sr().read().tnf() {}
-    pac::SPI0.dr().write(|w| w.set_data(0));
-
     loop {
-        while !pac::SPI0.sr().read().rne() {}
-        let rx = pac::SPI0.dr().read().data() as u8;
+        let rx = (sm.rx().wait_pull().await & 0xff) as u8;
+        let mut next_tx = 0u8;
+        let mut put_char = None;
+        let mut set_mode = None;
 
-        (state, tx_byte) = match state {
+        match state {
             State::Idle => match rx {
-                CMD_READ_STATUS => (State::SendStatus, 0),
-                CMD_GET_CHAR => (State::SendChar, 0),
-                CMD_PUT_CHAR => (State::ReceiveChar, 0),
-                CMD_SET_MODE => (State::ReceiveMode, 0),
-                _ => (State::Idle, 0),
+                0x00 => {}
+                CMD_READ_STATUS => {
+                    next_tx = 0;
+                }
+                CMD_GET_CHAR => {
+                    let c = KeyboardHandle::new().get_char().await.unwrap_or(0);
+                    next_tx = c;
+                }
+                CMD_PUT_CHAR => {
+                    state = State::ReceiveChar;
+                }
+                CMD_SET_MODE => {
+                    state = State::ReceiveMode;
+                }
+                _ => {
+                    state = State::Idle;
+                }
             },
 
-            State::SendStatus => (State::Idle, 0),
-
-            State::SendChar => {
-                let c = KeyboardHandle::new().get_char().await.unwrap_or(0);
-                (State::Idle, c)
-            }
-
             State::ReceiveChar => {
-                if mode == MODE_TEXT {
-                    TextHandle::new().put_char(rx).await;
-                }
-                (State::Idle, 0)
+                put_char = Some(rx);
+                state = State::Idle;
             }
 
             State::ReceiveMode => {
-                mode = rx;
-                (State::Idle, 0)
+                set_mode = Some(rx);
+                state = State::Idle;
             }
         };
 
-        while !pac::SPI0.sr().read().tnf() {}
-        pac::SPI0.dr().write(|w| w.set_data(tx_byte as u16));
+        sm.tx().wait_push((next_tx as u32) << 24).await;
+
+        if let Some(c) = put_char {
+            if mode == MODE_TEXT {
+                TextHandle::new().put_char(c).await;
+            }
+            if c != 0 {
+                log::info!("console char 0x{:02x}", c);
+            }
+        }
+
+        if let Some(new_mode) = set_mode {
+            mode = new_mode;
+        }
     }
 }

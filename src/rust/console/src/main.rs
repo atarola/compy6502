@@ -16,7 +16,8 @@ use embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Level, Output};
-use embassy_rp::peripherals::{SPI1, USB};
+use embassy_rp::peripherals::{PIO0, SPI1, USB};
+use embassy_rp::pio::{InterruptHandler as PioInterruptHandler, Pio};
 use embassy_rp::spi::{Async, Config, Spi};
 use embassy_rp::usb::{Driver, InterruptHandler};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
@@ -28,6 +29,7 @@ use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct Irqs {
+    PIO0_IRQ_0 => PioInterruptHandler<PIO0>;
     USBCTRL_IRQ => InterruptHandler<USB>;
 });
 
@@ -55,6 +57,7 @@ static SPI1_BUS: StaticCell<Mutex<CriticalSectionRawMutex, Spi<'static, SPI1, As
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
+    let pio0 = Pio::new(p.PIO0, Irqs);
 
     let spi1 = Spi::new(
         p.SPI1,
@@ -90,7 +93,7 @@ async fn main(spawner: Spawner) {
     display::display_init(&spawner, eve_device, eve_pd).await;
     text::text_init(&spawner).await;
     keyboard::keyboard_init(&spawner, max_device).await;
-    host::host_init(spawner, p.CORE1);
+    host::host_init(spawner, p.CORE1, pio0, p.PIN_0, p.PIN_1, p.PIN_2, p.PIN_3);
 
     spawner.spawn(blink_task(led)).unwrap();
 }

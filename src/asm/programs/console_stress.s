@@ -26,8 +26,6 @@ console_put:
   jsr SPI_SELECT
   lda #PUT_CHAR
   jsr SPI_WRITE
-  jsr SPI_DESELECT
-  jsr SPI_SELECT
   pla
   jsr SPI_WRITE
   jsr SPI_DESELECT
