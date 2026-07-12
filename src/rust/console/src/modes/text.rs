@@ -70,16 +70,6 @@ impl Text {
         }
     }
 
-    pub fn is_dirty(&self) -> bool {
-        self.dirty
-    }
-
-    pub async fn flush_and_render(&mut self, driver: &mut DisplayHandle) {
-        self.push_state(driver).await;
-        self.render(driver).await;
-        self.dirty = false;
-    }
-
     fn apply(&mut self, cmd: AnsiCmd) {
         match cmd {
             AnsiCmd::PutChar(c) => self.put_character(c),
@@ -251,7 +241,7 @@ impl Text {
         driver.end_bulk().await;
     }
 
-    async fn render(&self, driver: &mut DisplayHandle) {
+    async fn draw_frame(&self, driver: &mut DisplayHandle) {
         let mut i = 0u32;
         driver.write32(EVE_RAM_DL + i * 4, DL_CLEAR_RGB).await;
         i += 1;
@@ -470,7 +460,9 @@ impl DisplayMode for Text {
 
     async fn render(&mut self, display: &mut DisplayHandle) {
         if self.dirty {
-            self.flush_and_render(display).await;
+            self.push_state(display).await;
+            self.draw_frame(display).await;
+            self.dirty = false;
         }
     }
 }
