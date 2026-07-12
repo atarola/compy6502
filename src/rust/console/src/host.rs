@@ -6,20 +6,19 @@ use embassy_rp::Peri;
 use static_cell::StaticCell;
 
 use crate::keyboard::KeyboardHandle;
-use crate::text::TextHandle;
+use crate::modes::ModeHandle;
 
 const CMD_READ_STATUS: u8 = 0x01;
-const CMD_GET_CHAR: u8 = 0x20;
-const CMD_PUT_CHAR: u8 = 0x21;
-const CMD_SET_MODE: u8 = 0x30;
+const CMD_GET_CHAR: u8 = 0x02;
+const TXN_START: u32 = u32::MAX;
+const TXN_END: u32 = u32::MAX - 1;
 
-const MODE_TEXT: u8 = 0x00;
-const MODE_GRAPHICS: u8 = 0x01;
-
-enum State {
+enum TxnState {
     Idle,
-    ReceiveChar,
-    ReceiveMode,
+    AwaitOpcode,
+    Mode,
+    ReadStatus,
+    GetChar,
 }
 
 static mut CORE1_STACK: Stack<4096> = Stack::new();
@@ -52,20 +51,26 @@ async fn host_task(
     let prg = ::pio::pio_asm!(
         r#"
             capture:
-                pull block
                 wait 0 gpio 1
+                set x, 0
+                mov isr, invert(x)
+                push
             byte:
                 set x, 7
             bitloop:
-                out pins, 1
+                jmp pin end_txn
                 wait 1 gpio 2
                 in pins, 1
                 wait 0 gpio 2
+                out pins, 1
                 jmp x-- bitloop
-                push
-                jmp pin capture
-                pull block
                 jmp byte
+            end_txn:
+                wait 1 gpio 1
+                set x, 1
+                mov isr, invert(x)
+                push
+                jmp capture
         "#
     );
 
@@ -85,66 +90,58 @@ async fn host_task(
     cfg.set_out_pins(&[&pin_miso]);
     cfg.set_jmp_pin(&pin_cs);
     cfg.shift_in.direction = ShiftDirection::Left;
+    cfg.shift_in.threshold = 8;
+    cfg.shift_in.auto_fill = true;
     cfg.shift_out.direction = ShiftDirection::Left;
+    cfg.shift_out.threshold = 8;
+    cfg.shift_out.auto_fill = true;
     cfg.use_program(&prg, &[]);
     sm.set_config(&cfg);
-    sm.tx().push(0);
     sm.set_enable(true);
 
-    let mut state = State::Idle;
-    let mut mode = MODE_TEXT;
+    let modes = ModeHandle::new();
+    let mut txn_state = TxnState::Idle;
 
     loop {
-        let rx = (sm.rx().wait_pull().await & 0xff) as u8;
+        let rx = sm.rx().wait_pull().await;
         let mut next_tx = 0u8;
-        let mut put_char = None;
-        let mut set_mode = None;
 
-        match state {
-            State::Idle => match rx {
-                0x00 => {}
-                CMD_READ_STATUS => {
-                    next_tx = 0;
-                }
-                CMD_GET_CHAR => {
-                    let c = KeyboardHandle::new().get_char().await.unwrap_or(0);
-                    next_tx = c;
-                }
-                CMD_PUT_CHAR => {
-                    state = State::ReceiveChar;
-                }
-                CMD_SET_MODE => {
-                    state = State::ReceiveMode;
-                }
-                _ => {
-                    state = State::Idle;
-                }
-            },
-
-            State::ReceiveChar => {
-                put_char = Some(rx);
-                state = State::Idle;
+        match rx {
+            TXN_START => {
+                txn_state = TxnState::AwaitOpcode;
+                modes.start_txn().await;
             }
-
-            State::ReceiveMode => {
-                set_mode = Some(rx);
-                state = State::Idle;
+            TXN_END => {
+                txn_state = TxnState::Idle;
+                modes.end_txn().await;
             }
-        };
+            _ => {
+                match txn_state {
+                    TxnState::AwaitOpcode => match rx as u8 {
+                        CMD_READ_STATUS => {
+                            txn_state = TxnState::ReadStatus;
+                        }
+                        CMD_GET_CHAR => {
+                            txn_state = TxnState::GetChar;
+                            next_tx = KeyboardHandle::new().get_char().await.unwrap_or(0);
+                        }
+                        byte => {
+                            txn_state = TxnState::Mode;
+                            modes.consume(byte).await;
+                        }
+                    },
+                    TxnState::Mode => {
+                        modes.consume(rx as u8).await;
+                    }
+                    TxnState::ReadStatus => {
+                        next_tx = 0;
+                    }
+                    TxnState::GetChar => {}
+                    TxnState::Idle => {}
+                }
+            }
+        }
 
         sm.tx().wait_push((next_tx as u32) << 24).await;
-
-        if let Some(c) = put_char {
-            if mode == MODE_TEXT {
-                TextHandle::new().put_char(c).await;
-            }
-            if c != 0 {
-                log::info!("console char 0x{:02x}", c);
-            }
-        }
-
-        if let Some(new_mode) = set_mode {
-            mode = new_mode;
-        }
     }
 }

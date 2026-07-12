@@ -3,12 +3,11 @@
 
 mod display;
 mod eve;
-mod graphics;
 mod host;
 mod keyboard;
 mod keymap;
 mod max3421e;
-mod text;
+pub mod modes;
 
 use crate::eve::*;
 use defmt::*;
@@ -91,7 +90,7 @@ async fn main(spawner: Spawner) {
     let led = Output::new(p.PIN_13, Level::Low);
 
     display::display_init(&spawner, eve_device, eve_pd).await;
-    text::text_init(&spawner).await;
+    modes::modes_init(&spawner).await;
     keyboard::keyboard_init(&spawner, max_device).await;
     host::host_init(spawner, p.CORE1, pio0, p.PIN_0, p.PIN_1, p.PIN_2, p.PIN_3);
 
