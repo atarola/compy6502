@@ -1,4 +1,5 @@
 use crate::modes::{CommandBuffer, DisplayMode};
+use crate::display::DisplayHandle;
 
 pub struct Sprite;
 
@@ -24,4 +25,8 @@ impl DisplayMode for Sprite {
     fn end_txn(&mut self, _buf: &mut CommandBuffer) {
         todo!()
     }
+
+    fn tick(&mut self) {}
+
+    async fn render(&mut self, _display: &mut DisplayHandle) {}
 }

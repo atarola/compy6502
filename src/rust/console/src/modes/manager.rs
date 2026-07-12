@@ -1,7 +1,10 @@
 use embassy_executor::Spawner;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
+use embassy_time::{Duration, Ticker};
+use embassy_futures::select::{select, Either};
 
+use crate::display::DisplayHandle;
 use crate::modes::CommandBuffer;
 use crate::modes::DisplayMode;
 use crate::modes::sprite::Sprite;
@@ -24,6 +27,7 @@ static MODE_CHANNEL: Channel<CriticalSectionRawMutex, ModeEvent, 256> = Channel:
 
 pub struct ModeHandle;
 
+#[derive(Clone, Copy)]
 enum ModeStrategy {
     Text,
     Tui,
@@ -85,7 +89,7 @@ impl Modes {
 
     pub fn handle_start_txn(&mut self) {
         self.buf.clear();
-        self.reset();
+        self.state = ModeTxnState::AwaitOpcode;
         self.start_txn(&mut self.buf);
     }
 
@@ -110,8 +114,8 @@ impl Modes {
     }
 
     pub fn handle_end_txn(&mut self) {
-        self.end_txn(&mut self.buf);
         self.state = ModeTxnState::AwaitOpcode;
+        self.end_txn(&mut self.buf);
     }
 
     fn handle_mode_switch(&mut self, mode: u8) {
@@ -124,6 +128,7 @@ impl Modes {
         self.reset();
         self.state = ModeTxnState::Active;
     }
+
 }
 
 impl DisplayMode for Modes {
@@ -158,6 +163,22 @@ impl DisplayMode for Modes {
             ModeStrategy::Sprite => self.sprite.end_txn(buf),
         }
     }
+
+    fn tick(&mut self) {
+        match self.active {
+            ModeStrategy::Text => self.text.tick(),
+            ModeStrategy::Tui => self.tui.tick(),
+            ModeStrategy::Sprite => self.sprite.tick(),
+        }
+    }
+
+    async fn render(&mut self, display: &mut DisplayHandle) {
+        match self.active {
+            ModeStrategy::Text => self.text.render(display).await,
+            ModeStrategy::Tui => self.tui.render(display).await,
+            ModeStrategy::Sprite => self.sprite.render(display).await,
+        }
+    }
 }
 
 pub async fn modes_init(spawner: &Spawner) {
@@ -168,9 +189,18 @@ pub async fn modes_init(spawner: &Spawner) {
 async fn modes_task() {
     let receiver = MODE_CHANNEL.receiver();
     let mut modes = Modes::new();
+    let mut display = DisplayHandle::new();
+    let mut tick = Ticker::every(Duration::from_millis(16));
 
     loop {
-        let event = receiver.receive().await;
-        modes.handle(event);
+        match select(receiver.receive(), tick.next()).await {
+            Either::First(event) => {
+                modes.handle(event);
+            }
+            Either::Second(_) => {
+                modes.tick();
+                modes.render(&mut display).await;
+            }
+        }
     }
 }

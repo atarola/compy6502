@@ -1,5 +1,7 @@
 use heapless::Vec;
 
+use crate::display::DisplayHandle;
+
 pub mod text;
 pub mod tui;
 pub mod sprite;
@@ -29,6 +31,8 @@ pub trait DisplayMode {
     fn start_txn(&mut self, buf: &mut CommandBuffer);
     fn consume(&mut self, buf: &mut CommandBuffer, byte: u8);
     fn end_txn(&mut self, buf: &mut CommandBuffer);
+    fn tick(&mut self);
+    async fn render(&mut self, display: &mut DisplayHandle);
 }
 
 pub use manager::{modes_init, ModeEvent, ModeHandle, Modes};
