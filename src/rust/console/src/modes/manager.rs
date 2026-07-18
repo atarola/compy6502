@@ -5,7 +5,6 @@ use embassy_sync::channel::Channel;
 use embassy_time::{Duration, Ticker};
 
 use crate::display::DisplayHandle;
-use crate::modes::CommandBuffer;
 use crate::modes::DisplayMode;
 use crate::modes::text::Text;
 use crate::modes::tui::Tui;
@@ -60,7 +59,6 @@ impl ModeHandle {
 }
 
 pub struct Modes {
-    buf: CommandBuffer,
     state: ModeTxnState,
     active: ActiveMode,
     text: Text,
@@ -70,7 +68,6 @@ pub struct Modes {
 impl Modes {
     pub fn new() -> Modes {
         Modes {
-            buf: CommandBuffer::new(),
             state: ModeTxnState::AwaitOpcode,
             active: ActiveMode::Text,
             text: Text::new(),
@@ -88,11 +85,10 @@ impl Modes {
     }
 
     pub fn handle_start_txn(&mut self) {
-        self.buf.clear();
         self.state = ModeTxnState::AwaitOpcode;
         match self.active {
-            ActiveMode::Text => self.text.start_txn(&mut self.buf),
-            ActiveMode::Tui => self.tui.start_txn(&mut self.buf),
+            ActiveMode::Text => self.text.start_txn(),
+            ActiveMode::Tui => self.tui.start_txn(),
         }
     }
 
@@ -107,16 +103,16 @@ impl Modes {
 
                 self.state = ModeTxnState::Active;
                 match self.active {
-                    ActiveMode::Text => self.text.consume(&mut self.buf, byte),
-                    ActiveMode::Tui => self.tui.consume(&mut self.buf, byte),
+                    ActiveMode::Text => self.text.consume(byte),
+                    ActiveMode::Tui => self.tui.consume(byte),
                 }
             }
             ModeTxnState::AwaitMode => {
                 self.handle_mode_switch(byte);
             }
             ModeTxnState::Active => match self.active {
-                ActiveMode::Text => self.text.consume(&mut self.buf, byte),
-                ActiveMode::Tui => self.tui.consume(&mut self.buf, byte),
+                ActiveMode::Text => self.text.consume(byte),
+                ActiveMode::Tui => self.tui.consume(byte),
             },
         }
     }
@@ -124,8 +120,8 @@ impl Modes {
     pub fn handle_end_txn(&mut self) {
         self.state = ModeTxnState::AwaitOpcode;
         match self.active {
-            ActiveMode::Text => self.text.end_txn(&mut self.buf),
-            ActiveMode::Tui => self.tui.end_txn(&mut self.buf),
+            ActiveMode::Text => self.text.end_txn(),
+            ActiveMode::Tui => self.tui.end_txn(),
         }
     }
 

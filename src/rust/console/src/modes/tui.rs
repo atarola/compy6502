@@ -2,9 +2,9 @@ mod node;
 mod parser;
 
 use crate::display::DisplayHandle;
+use crate::modes::DisplayMode;
 use crate::modes::tui::node::Tree;
 use crate::modes::tui::parser::{Command, Parser};
-use crate::modes::{CommandBuffer, DisplayMode};
 
 pub struct Tui {
     parser: Parser,
@@ -54,15 +54,15 @@ impl DisplayMode for Tui {
         self.dirty = true;
     }
 
-    fn start_txn(&mut self, _buf: &mut CommandBuffer) {}
+    fn start_txn(&mut self) {}
 
-    fn consume(&mut self, _buf: &mut CommandBuffer, byte: u8) {
+    fn consume(&mut self, byte: u8) {
         if let Some(command) = self.parser.feed(byte) {
             self.apply(command);
         }
     }
 
-    fn end_txn(&mut self, _buf: &mut CommandBuffer) {}
+    fn end_txn(&mut self) {}
 
     fn tick(&mut self) {}
 

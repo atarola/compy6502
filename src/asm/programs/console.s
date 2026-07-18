@@ -27,6 +27,7 @@ console_get:
   jsr SPI_TRANSFER
   pha
   jsr SPI_DESELECT
+  jsr console_delay
   pla
   rts
 
@@ -38,4 +39,14 @@ console_put:
   pla
   jsr SPI_WRITE
   jsr SPI_DESELECT
+  jsr console_delay
+  rts
+
+console_delay:
+  pha
+  lda #$FF
+@loop:
+  dec
+  bne @loop
+  pla
   rts
