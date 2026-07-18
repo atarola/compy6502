@@ -13,6 +13,9 @@ GET_CHAR = $20
 loop:
   jsr console_get
   beq loop
+  pha
+  jsr ACIA_PUTC
+  pla
   jsr console_put
   jmp loop
 

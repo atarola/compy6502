@@ -1,25 +1,23 @@
 use embassy_executor::{Executor, Spawner};
-use embassy_rp::multicore::{spawn_core1, Stack};
+use embassy_rp::Peri;
+use embassy_rp::multicore::{Stack, spawn_core1};
 use embassy_rp::peripherals::{CORE1, PIN_0, PIN_1, PIN_2, PIN_3, PIO0};
 use embassy_rp::pio::{Config, Direction as PioDirection, Pio, ShiftDirection};
-use embassy_rp::Peri;
 use static_cell::StaticCell;
 
 use crate::keyboard::KeyboardHandle;
-use crate::text::TextHandle;
 
 const CMD_READ_STATUS: u8 = 0x01;
 const CMD_GET_CHAR: u8 = 0x20;
 const CMD_PUT_CHAR: u8 = 0x21;
-const CMD_SET_MODE: u8 = 0x30;
-
-const MODE_TEXT: u8 = 0x00;
-const MODE_GRAPHICS: u8 = 0x01;
 
 enum State {
     Idle,
     ReceiveChar,
-    ReceiveMode,
+}
+
+fn decode_rx(word: u32) -> u8 {
+    (word & 0xff) as u8
 }
 
 static mut CORE1_STACK: Stack<4096> = Stack::new();
@@ -36,7 +34,9 @@ pub fn host_init(
     spawn_core1(core1, unsafe { &mut *(&raw mut CORE1_STACK) }, move || {
         static EXECUTOR: StaticCell<Executor> = StaticCell::new();
         EXECUTOR.init(Executor::new()).run(|spawner| {
-            spawner.spawn(host_task(pio0, pin_miso, pin_cs, pin_sck, pin_mosi)).unwrap();
+            spawner
+                .spawn(host_task(pio0, pin_miso, pin_cs, pin_sck, pin_mosi))
+                .unwrap();
         });
     });
 }
@@ -55,17 +55,22 @@ async fn host_task(
                 pull block
                 wait 0 gpio 1
             byte:
+                jmp pin flush
                 set x, 7
             bitloop:
                 out pins, 1
                 wait 1 gpio 2
                 in pins, 1
+                jmp pin flush
                 wait 0 gpio 2
                 jmp x-- bitloop
                 push
                 jmp pin capture
                 pull block
                 jmp byte
+            flush:
+                mov isr, null
+                jmp capture
         "#
     );
 
@@ -92,59 +97,31 @@ async fn host_task(
     sm.set_enable(true);
 
     let mut state = State::Idle;
-    let mut mode = MODE_TEXT;
 
     loop {
-        let rx = (sm.rx().wait_pull().await & 0xff) as u8;
+        let word = sm.rx().wait_pull().await;
+        let rx = decode_rx(word);
         let mut next_tx = 0u8;
-        let mut put_char = None;
-        let mut set_mode = None;
 
         match state {
             State::Idle => match rx {
                 0x00 => {}
                 CMD_READ_STATUS => {
-                    next_tx = 0;
+                    next_tx = KeyboardHandle::new().has_data() as u8;
                 }
                 CMD_GET_CHAR => {
-                    let c = KeyboardHandle::new().get_char().await.unwrap_or(0);
-                    next_tx = c;
+                    next_tx = KeyboardHandle::new().get_char().await.unwrap_or(0);
                 }
                 CMD_PUT_CHAR => {
                     state = State::ReceiveChar;
                 }
-                CMD_SET_MODE => {
-                    state = State::ReceiveMode;
-                }
-                _ => {
-                    state = State::Idle;
-                }
+                _ => {}
             },
-
             State::ReceiveChar => {
-                put_char = Some(rx);
-                state = State::Idle;
-            }
-
-            State::ReceiveMode => {
-                set_mode = Some(rx);
                 state = State::Idle;
             }
         };
 
         sm.tx().wait_push((next_tx as u32) << 24).await;
-
-        if let Some(c) = put_char {
-            if mode == MODE_TEXT {
-                TextHandle::new().put_char(c).await;
-            }
-            if c != 0 {
-                log::info!("console char 0x{:02x}", c);
-            }
-        }
-
-        if let Some(new_mode) = set_mode {
-            mode = new_mode;
-        }
     }
 }
