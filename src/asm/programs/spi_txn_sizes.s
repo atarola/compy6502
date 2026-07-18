@@ -3,60 +3,47 @@
 .include "include/compy6502.inc"
 
 .org $1000
-  lda #SPI_CLK_125K
+  lda #SPI_CLK_1M
   ora #SPI_CS_SEL3
   jsr SPI_CONFIGURE
   bcs @done
 
-  lda #'1'
-  jsr ACIA_PUTC
-  jsr PRINT_NEWLINE
+@again:
+  lda #<txn_wakeup
+  ldx #>txn_wakeup
+  ldy #txn_wakeup_end - txn_wakeup
+  jsr send_txn
+
   lda #<txn_1
   ldx #>txn_1
   ldy #txn_1_end - txn_1
   jsr send_txn
 
-  lda #'2'
-  jsr ACIA_PUTC
-  jsr PRINT_NEWLINE
   lda #<txn_2
   ldx #>txn_2
   ldy #txn_2_end - txn_2
   jsr send_txn
 
-  lda #'3'
-  jsr ACIA_PUTC
-  jsr PRINT_NEWLINE
   lda #<txn_3
   ldx #>txn_3
   ldy #txn_3_end - txn_3
   jsr send_txn
 
-  lda #'4'
-  jsr ACIA_PUTC
-  jsr PRINT_NEWLINE
   lda #<txn_4
   ldx #>txn_4
   ldy #txn_4_end - txn_4
   jsr send_txn
 
-  lda #'8'
-  jsr ACIA_PUTC
-  jsr PRINT_NEWLINE
   lda #<txn_8
   ldx #>txn_8
   ldy #txn_8_end - txn_8
   jsr send_txn
 
-  lda #'1'
-  jsr ACIA_PUTC
-  lda #'6'
-  jsr ACIA_PUTC
-  jsr PRINT_NEWLINE
   lda #<txn_16
   ldx #>txn_16
   ldy #txn_16_end - txn_16
   jsr send_txn
+  jmp @again
 
 @done:
   jmp WOZMON
@@ -90,22 +77,14 @@ send_txn:
 @deselect:
   pha
   jsr SPI_DESELECT
-  jsr delay
   pla
   clc
 @done:
   rts
 
-; Leave CS high long enough for RP2040-side diagnostics to observe it.
-; in:  none
-; out: none
-; clobbers: A, flags
-delay:
-  lda #$FF
-@loop:
-  dec
-  bne @loop
-  rts
+txn_wakeup:
+  .byte $5A
+txn_wakeup_end:
 
 txn_1:
   .byte $A1
