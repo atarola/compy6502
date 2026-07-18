@@ -1,38 +1,19 @@
-use embassy_executor::Spawner;
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::channel::Channel;
 use heapless::Vec;
 
 use crate::display::DisplayHandle;
-use crate::text::AnsiCmd::{Backspace, Newline, PutChar};
-use crate::text::AnsiState::{Escape, Normal, Sequence};
+use crate::modes::{CommandBuffer, DisplayMode};
+use self::AnsiCmd::{Backspace, Newline, PutChar};
+use self::AnsiState::{Escape, Normal, Sequence};
 
+const CMD_PUT_CHAR: u8 = 0x21;
 const COLS: usize = 58;
 const ROWS: usize = 17;
 
-// ANSI color index to TEXTVGA palette index
-// 0=black, 1=red, 2=green, 3=yellow, 4=blue, 5=magenta, 6=cyan, 7=white
-// 8-15: bright variants
+// ANSI color index to TEXTVGA palette index.
 const ANSI_TO_TEXTVGA: [u8; 16] = [
-    0x00, // 0  - black
-    0x04, // 1  - red
-    0x02, // 2  - green
-    0x06, // 3  - yellow
-    0x01, // 4  - blue
-    0x05, // 5  - magenta
-    0x03, // 6  - cyan
-    0x07, // 7  - white
-    0x08, // 8  - bright black (dark grey)
-    0x0C, // 9  - bright red
-    0x0A, // 10 - bright green
-    0x0E, // 11 - bright yellow
-    0x09, // 12 - bright blue
-    0x0D, // 13 - bright magenta
-    0x0B, // 14 - bright cyan
-    0x0F, // 15 - bright white
+    0x00, 0x04, 0x02, 0x06, 0x01, 0x05, 0x03, 0x07, 0x08, 0x0C, 0x0A, 0x0E, 0x09, 0x0D,
+    0x0B, 0x0F,
 ];
-
-static TEXT_CHANNEL: Channel<CriticalSectionRawMutex, u8, 256> = Channel::new();
 
 #[derive(Clone, Copy)]
 struct Cell {
@@ -63,18 +44,6 @@ enum AnsiCmd {
     HideCursor,
 }
 
-pub struct TextHandle;
-
-impl TextHandle {
-    pub fn new() -> TextHandle {
-        TextHandle
-    }
-
-    pub async fn put_char(&self, c: u8) {
-        TEXT_CHANNEL.send(c).await;
-    }
-}
-
 struct AnsiParser {
     state: AnsiState,
 }
@@ -87,8 +56,8 @@ impl AnsiParser {
     fn feed(&mut self, c: u8) -> Option<AnsiCmd> {
         match self.state {
             Normal => self.on_normal(c),
-            AnsiState::Escape => self.on_esc(c),
-            AnsiState::Sequence(_) => self.on_sequence(c),
+            Escape => self.on_esc(c),
+            Sequence(_) => self.on_sequence(c),
         }
     }
 
@@ -116,19 +85,19 @@ impl AnsiParser {
 
     fn on_sequence(&mut self, c: u8) -> Option<AnsiCmd> {
         if c >= 0x40 {
-            let old = core::mem::replace(&mut self.state, AnsiState::Normal);
-            let AnsiState::Sequence(buf) = old else {
+            let old = core::mem::replace(&mut self.state, Normal);
+            let Sequence(buf) = old else {
                 return None;
             };
             return Self::dispatch(c, &buf);
         }
 
-        let AnsiState::Sequence(ref mut buf) = self.state else {
+        let Sequence(ref mut buf) = self.state else {
             return None;
         };
 
         if buf.is_full() {
-            self.state = AnsiState::Normal;
+            self.state = Normal;
             return None;
         }
 
@@ -141,14 +110,27 @@ impl AnsiParser {
         let (params, count) = Self::parse_params(if is_private { &buf[1..] } else { buf });
 
         match cmd {
-            b'H' | b'f' => Self::parse_cursor_pos(&params, count),
-            b'A' => Self::parse_cursor_up(&params),
-            b'B' => Self::parse_cursor_down(&params),
-            b'C' => Self::parse_cursor_right(&params),
-            b'D' => Self::parse_cursor_left(&params),
+            b'H' | b'f' => Some(AnsiCmd::CursorPos(
+                params[0].saturating_sub(1),
+                if count >= 2 { params[1].saturating_sub(1) } else { 0 },
+            )),
+            b'A' => Some(AnsiCmd::CursorUp(if params[0] == 0 { 1 } else { params[0] })),
+            b'B' => Some(AnsiCmd::CursorDown(if params[0] == 0 { 1 } else { params[0] })),
+            b'C' => Some(AnsiCmd::CursorRight(if params[0] == 0 { 1 } else { params[0] })),
+            b'D' => Some(AnsiCmd::CursorLeft(if params[0] == 0 { 1 } else { params[0] })),
             b'J' => Some(AnsiCmd::EraseScreen),
-            b'K' => Self::parse_erase_line(&params),
-            b'm' => Self::parse_sgr(&params, count),
+            b'K' => Some(if params[0] == 2 {
+                AnsiCmd::EraseLineFull
+            } else {
+                AnsiCmd::EraseLine
+            }),
+            b'm' => {
+                let mut sgr = heapless::Vec::new();
+                for param in params.iter().take(count) {
+                    let _ = sgr.push(*param);
+                }
+                Some(AnsiCmd::Sgr(sgr))
+            }
             b'h' if is_private => Some(AnsiCmd::ShowCursor),
             b'l' if is_private => Some(AnsiCmd::HideCursor),
             _ => None,
@@ -159,6 +141,7 @@ impl AnsiParser {
         let mut params = [0u8; 8];
         let mut count = 0usize;
         let mut val = 0u8;
+
         for &b in buf {
             if b == b';' {
                 if count < 8 {
@@ -170,91 +153,13 @@ impl AnsiParser {
                 val = val.saturating_mul(10).saturating_add(b - b'0');
             }
         }
+
         if count < 8 {
             params[count] = val;
             count += 1;
         }
+
         (params, count)
-    }
-
-    // ESC [ H - cursor home (1,1)
-    // ESC [ 5 ; 10 H - cursor to row 5, col 10
-    fn parse_cursor_pos(params: &[u8; 8], count: usize) -> Option<AnsiCmd> {
-        Some(AnsiCmd::CursorPos(
-            params[0].saturating_sub(1),
-            if count >= 2 {
-                params[1].saturating_sub(1)
-            } else {
-                0
-            },
-        ))
-    }
-
-    // ESC [ A - cursor up 1
-    // ESC [ 3 A - cursor up 3
-    fn parse_cursor_up(params: &[u8; 8]) -> Option<AnsiCmd> {
-        Some(AnsiCmd::CursorUp(if params[0] == 0 {
-            1
-        } else {
-            params[0]
-        }))
-    }
-
-    // ESC [ B - cursor down 1
-    // ESC [ 3 B - cursor down 3
-    fn parse_cursor_down(params: &[u8; 8]) -> Option<AnsiCmd> {
-        Some(AnsiCmd::CursorDown(if params[0] == 0 {
-            1
-        } else {
-            params[0]
-        }))
-    }
-
-    // ESC [ C - cursor right 1
-    // ESC [ 3 C - cursor right 3
-    fn parse_cursor_right(params: &[u8; 8]) -> Option<AnsiCmd> {
-        Some(AnsiCmd::CursorRight(if params[0] == 0 {
-            1
-        } else {
-            params[0]
-        }))
-    }
-
-    // ESC [ D - cursor left 1
-    // ESC [ 3 D - cursor left 3
-    fn parse_cursor_left(params: &[u8; 8]) -> Option<AnsiCmd> {
-        Some(AnsiCmd::CursorLeft(if params[0] == 0 {
-            1
-        } else {
-            params[0]
-        }))
-    }
-
-    // ESC [ J - erase entire screen
-    // (handled directly in dispatch)
-
-    // ESC [ K - erase line from cursor
-    // ESC [ 2 K - erase entire line
-    fn parse_erase_line(params: &[u8; 8]) -> Option<AnsiCmd> {
-        if params[0] == 2 {
-            Some(AnsiCmd::EraseLineFull)
-        } else {
-            Some(AnsiCmd::EraseLine)
-        }
-    }
-
-    // ESC [ 0 m       - reset colors
-    // ESC [ 31 m      - fg red
-    // ESC [ 42 m      - bg green
-    // ESC [ 1 ; 33 m  - fg yellow (bold ignored)
-    // ESC [ ? 25 l    - hide cursor
-    // ESC [ ? 25 h    - show cursor
-    fn parse_sgr(params: &[u8; 8], count: usize) -> Option<AnsiCmd> {
-        let mut sgr: heapless::Vec<u8, 8> = heapless::Vec::new();
-        for i in 0..count {
-            let _ = sgr.push(params[i]);
-        }
-        Some(AnsiCmd::Sgr(sgr))
     }
 }
 
@@ -270,10 +175,7 @@ struct TextState {
 impl TextState {
     fn new() -> TextState {
         TextState {
-            grid: [[Cell {
-                ch: b' ',
-                attr: 0x0A,
-            }; COLS]; ROWS],
+            grid: [[Cell { ch: b' ', attr: 0x0A }; COLS]; ROWS],
             cursor_x: 0,
             cursor_y: 0,
             attr: 0x0A,
@@ -316,10 +218,7 @@ impl TextState {
             self.cursor_x -= 1;
             let x = self.cursor_x as usize;
             let y = self.cursor_y as usize;
-            self.grid[y][x] = Cell {
-                ch: b' ',
-                attr: self.attr,
-            };
+            self.grid[y][x] = Cell { ch: b' ', attr: self.attr };
             self.dirty = true;
         }
     }
@@ -353,8 +252,10 @@ impl TextState {
     fn apply_sgr(&mut self, params: &[u8]) {
         if params.is_empty() {
             self.attr = 0x0F;
+            self.dirty = true;
             return;
         }
+
         for &p in params {
             match p {
                 0 => self.attr = 0x0F,
@@ -385,10 +286,7 @@ impl TextState {
     fn clear(&mut self) {
         for row in self.grid.iter_mut() {
             for cell in row.iter_mut() {
-                *cell = Cell {
-                    ch: b' ',
-                    attr: self.attr,
-                };
+                *cell = Cell { ch: b' ', attr: self.attr };
             }
         }
         self.cursor_x = 0;
@@ -399,10 +297,7 @@ impl TextState {
     fn row_clear(&mut self) {
         let row = self.cursor_y as usize;
         for cell in self.grid[row].iter_mut() {
-            *cell = Cell {
-                ch: b' ',
-                attr: self.attr,
-            };
+            *cell = Cell { ch: b' ', attr: self.attr };
         }
         self.dirty = true;
     }
@@ -411,10 +306,7 @@ impl TextState {
         self.grid.rotate_left(1);
         let last = ROWS - 1;
         for cell in self.grid[last].iter_mut() {
-            *cell = Cell {
-                ch: b' ',
-                attr: self.attr,
-            };
+            *cell = Cell { ch: b' ', attr: self.attr };
         }
         self.dirty = true;
     }
@@ -422,10 +314,7 @@ impl TextState {
     fn put_character(&mut self, c: u8) {
         let x = self.cursor_x as usize;
         let y = self.cursor_y as usize;
-        self.grid[y][x] = Cell {
-            ch: c,
-            attr: self.attr,
-        };
+        self.grid[y][x] = Cell { ch: c, attr: self.attr };
         self.cursor_x += 1;
         if self.cursor_x as usize >= COLS {
             self.cursor_x = 0;
@@ -439,44 +328,76 @@ impl TextState {
     }
 }
 
-pub async fn text_init(spawner: &Spawner) {
-    spawner.spawn(text_task(DisplayHandle::new())).unwrap();
+pub struct Text {
+    awaiting_put_char: bool,
+    blink_ticks: u8,
+    parser: AnsiParser,
+    state: TextState,
 }
 
-#[embassy_executor::task]
-async fn text_task(mut driver: DisplayHandle) {
-    use embassy_futures::select::{Either3, select3};
-    use embassy_time::Ticker;
-
-    let receiver = TEXT_CHANNEL.receiver();
-    let mut parser = AnsiParser::new();
-    let mut state = TextState::new();
-    let mut render_tick = Ticker::every(embassy_time::Duration::from_millis(16));
-    let mut blink_tick = Ticker::every(embassy_time::Duration::from_millis(500));
-
-    loop {
-        match select3(receiver.receive(), render_tick.next(), blink_tick.next()).await {
-            Either3::First(c) => {
-                if let Some(cmd) = parser.feed(c) {
-                    state.apply(cmd);
-                }
-            }
-            Either3::Second(_) => {
-                if state.dirty {
-                    push_state(&state, &mut driver).await;
-                    render(&state, &mut driver).await;
-                    state.dirty = false;
-                }
-            }
-            Either3::Third(_) => {
-                state.blink();
-            }
+impl Text {
+    pub fn new() -> Text {
+        Text {
+            awaiting_put_char: false,
+            blink_ticks: 0,
+            parser: AnsiParser::new(),
+            state: TextState::new(),
         }
+    }
+
+    fn put_char(&mut self, c: u8) {
+        if let Some(cmd) = self.parser.feed(c) {
+            self.state.apply(cmd);
+        }
+    }
+}
+
+impl DisplayMode for Text {
+    fn reset(&mut self) {
+        self.awaiting_put_char = false;
+        self.blink_ticks = 0;
+        self.parser = AnsiParser::new();
+        self.state = TextState::new();
+    }
+
+    fn start_txn(&mut self, _buf: &mut CommandBuffer) {}
+
+    fn consume(&mut self, _buf: &mut CommandBuffer, byte: u8) {
+        if self.awaiting_put_char {
+            self.awaiting_put_char = false;
+            self.put_char(byte);
+            return;
+        }
+
+        if byte == CMD_PUT_CHAR {
+            self.awaiting_put_char = true;
+        }
+    }
+
+    fn end_txn(&mut self, _buf: &mut CommandBuffer) {}
+
+    fn tick(&mut self) {
+        self.blink_ticks += 1;
+        if self.blink_ticks >= 31 {
+            self.blink_ticks = 0;
+            self.state.blink();
+        }
+    }
+
+    async fn render(&mut self, display: &mut DisplayHandle) {
+        if !self.state.dirty {
+            return;
+        }
+
+        push_state(&self.state, display).await;
+        render_display(display).await;
+        self.state.dirty = false;
     }
 }
 
 async fn push_state(state: &TextState, driver: &mut DisplayHandle) {
     use crate::eve::EVE_RAM_G;
+
     driver.begin_bulk(EVE_RAM_G).await;
     for (r, row) in state.grid.iter().enumerate() {
         for (c, cell) in row.iter().enumerate() {
@@ -495,8 +416,9 @@ async fn push_state(state: &TextState, driver: &mut DisplayHandle) {
     driver.end_bulk().await;
 }
 
-async fn render(_state: &TextState, driver: &mut DisplayHandle) {
+async fn render_display(driver: &mut DisplayHandle) {
     use crate::eve::*;
+
     let mut i = 0u32;
     driver.write32(EVE_RAM_DL + i * 4, DL_CLEAR_RGB).await;
     i += 1;

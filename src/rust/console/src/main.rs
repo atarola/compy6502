@@ -3,12 +3,11 @@
 
 mod display;
 mod eve;
-mod graphics;
 mod host;
 mod keyboard;
 mod keymap;
 mod max3421e;
-mod text;
+mod modes;
 
 use crate::eve::*;
 use defmt::*;
@@ -73,10 +72,12 @@ async fn main(spawner: Spawner) {
 
     let usb_driver = Driver::new(p.USB, Irqs);
     let logger_state = LOGGER_STATE.init(LoggerState::new());
+
     unsafe {
         log::set_logger_racy(&USB_LOGGER).unwrap();
         log::set_max_level_racy(log::LevelFilter::Info);
     }
+
     spawner
         .spawn(usb_logger_task(logger_state, usb_driver))
         .unwrap();
@@ -91,9 +92,9 @@ async fn main(spawner: Spawner) {
     let led = Output::new(p.PIN_13, Level::Low);
 
     display::display_init(&spawner, eve_device, eve_pd).await;
-    text::text_init(&spawner).await;
     keyboard::keyboard_init(&spawner, max_device).await;
+    modes::modes_init(spawner);
     host::host_init(spawner, p.CORE1, pio0, p.PIN_0, p.PIN_1, p.PIN_2, p.PIN_3);
-
+    
     spawner.spawn(blink_task(led)).unwrap();
 }

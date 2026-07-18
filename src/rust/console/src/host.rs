@@ -1,25 +1,18 @@
 use embassy_executor::{Executor, Spawner};
-use embassy_rp::multicore::{spawn_core1, Stack};
+use embassy_rp::Peri;
+use embassy_rp::multicore::{Stack, spawn_core1};
 use embassy_rp::peripherals::{CORE1, PIN_0, PIN_1, PIN_2, PIN_3, PIO0};
 use embassy_rp::pio::{Config, Direction as PioDirection, Pio, ShiftDirection};
-use embassy_rp::Peri;
 use static_cell::StaticCell;
 
 use crate::keyboard::KeyboardHandle;
-use crate::text::TextHandle;
+use crate::modes::ModeHandle;
 
 const CMD_READ_STATUS: u8 = 0x01;
 const CMD_GET_CHAR: u8 = 0x20;
-const CMD_PUT_CHAR: u8 = 0x21;
-const CMD_SET_MODE: u8 = 0x30;
 
-const MODE_TEXT: u8 = 0x00;
-const MODE_GRAPHICS: u8 = 0x01;
-
-enum State {
-    Idle,
-    ReceiveChar,
-    ReceiveMode,
+fn decode_rx(word: u32) -> u8 {
+    (word & 0xff) as u8
 }
 
 static mut CORE1_STACK: Stack<4096> = Stack::new();
@@ -36,7 +29,9 @@ pub fn host_init(
     spawn_core1(core1, unsafe { &mut *(&raw mut CORE1_STACK) }, move || {
         static EXECUTOR: StaticCell<Executor> = StaticCell::new();
         EXECUTOR.init(Executor::new()).run(|spawner| {
-            spawner.spawn(host_task(pio0, pin_miso, pin_cs, pin_sck, pin_mosi)).unwrap();
+            spawner
+                .spawn(host_task(pio0, pin_miso, pin_cs, pin_sck, pin_mosi))
+                .unwrap();
         });
     });
 }
@@ -49,33 +44,41 @@ async fn host_task(
     pin_sck: Peri<'static, PIN_2>,
     pin_mosi: Peri<'static, PIN_3>,
 ) {
-    let prg = ::pio::pio_asm!(
+    let spi_prg = ::pio::pio_asm!(
         r#"
-            capture:
+            init:
                 pull block
+                mov isr, null
+                wait 1 gpio 1
+            capture:
                 wait 0 gpio 1
+                set x, 7
+                jmp bitloop
             byte:
+                jmp pin flush
                 set x, 7
             bitloop:
                 out pins, 1
                 wait 1 gpio 2
                 in pins, 1
+                jmp pin flush
                 wait 0 gpio 2
                 jmp x-- bitloop
                 push
-                jmp pin capture
                 pull block
                 jmp byte
+            flush:
+                mov isr, null
+                jmp capture
         "#
     );
-
     let mut common = pio.common;
     let mut sm = pio.sm0;
     let pin_miso = common.make_pio_pin(pin_miso);
     let pin_cs = common.make_pio_pin(pin_cs);
     let pin_sck = common.make_pio_pin(pin_sck);
     let pin_mosi = common.make_pio_pin(pin_mosi);
-    let prg = common.load_program(&prg.program);
+    let spi_prg = common.load_program(&spi_prg.program);
 
     sm.set_pin_dirs(PioDirection::Out, &[&pin_miso]);
     sm.set_pin_dirs(PioDirection::In, &[&pin_cs, &pin_sck, &pin_mosi]);
@@ -86,65 +89,31 @@ async fn host_task(
     cfg.set_jmp_pin(&pin_cs);
     cfg.shift_in.direction = ShiftDirection::Left;
     cfg.shift_out.direction = ShiftDirection::Left;
-    cfg.use_program(&prg, &[]);
+    cfg.use_program(&spi_prg, &[]);
     sm.set_config(&cfg);
     sm.tx().push(0);
     sm.set_enable(true);
 
-    let mut state = State::Idle;
-    let mut mode = MODE_TEXT;
+    let mode_handle = ModeHandle::new();
 
     loop {
-        let rx = (sm.rx().wait_pull().await & 0xff) as u8;
+        let word = sm.rx().wait_pull().await;
+        let rx = decode_rx(word);
         let mut next_tx = 0u8;
-        let mut put_char = None;
-        let mut set_mode = None;
 
-        match state {
-            State::Idle => match rx {
-                0x00 => {}
-                CMD_READ_STATUS => {
-                    next_tx = 0;
-                }
-                CMD_GET_CHAR => {
-                    let c = KeyboardHandle::new().get_char().await.unwrap_or(0);
-                    next_tx = c;
-                }
-                CMD_PUT_CHAR => {
-                    state = State::ReceiveChar;
-                }
-                CMD_SET_MODE => {
-                    state = State::ReceiveMode;
-                }
-                _ => {
-                    state = State::Idle;
-                }
-            },
-
-            State::ReceiveChar => {
-                put_char = Some(rx);
-                state = State::Idle;
+        match rx {
+            0x00 => {}
+            CMD_READ_STATUS => {
+                next_tx = KeyboardHandle::new().has_data() as u8;
             }
-
-            State::ReceiveMode => {
-                set_mode = Some(rx);
-                state = State::Idle;
+            CMD_GET_CHAR => {
+                next_tx = KeyboardHandle::new().get_char().await.unwrap_or(0);
             }
-        };
+            _ => {
+                mode_handle.consume(rx).await;
+            }
+        }
 
         sm.tx().wait_push((next_tx as u32) << 24).await;
-
-        if let Some(c) = put_char {
-            if mode == MODE_TEXT {
-                TextHandle::new().put_char(c).await;
-            }
-            if c != 0 {
-                log::info!("console char 0x{:02x}", c);
-            }
-        }
-
-        if let Some(new_mode) = set_mode {
-            mode = new_mode;
-        }
     }
 }
