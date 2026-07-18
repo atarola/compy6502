@@ -8,15 +8,18 @@ use crate::display::DisplayHandle;
 use crate::modes::CommandBuffer;
 use crate::modes::DisplayMode;
 use crate::modes::text::Text;
+use crate::modes::tui::Tui;
 
 const SWITCH_MODE_OPCODE: u8 = 0xFF;
 const MODE_TEXT: u8 = 0x00;
+const MODE_TUI: u8 = 0x01;
 
 #[derive(Clone, Copy)]
 pub enum ModeEvent {
     StartTxn,
     Consume(u8),
     EndTxn,
+    SwitchMode(u8),
 }
 
 static MODE_CHANNEL: Channel<CriticalSectionRawMutex, ModeEvent, 256> = Channel::new();
@@ -25,6 +28,7 @@ pub struct ModeHandle;
 
 enum ActiveMode {
     Text,
+    Tui,
 }
 
 enum ModeTxnState {
@@ -49,6 +53,10 @@ impl ModeHandle {
     pub async fn end_txn(&self) {
         MODE_CHANNEL.send(ModeEvent::EndTxn).await;
     }
+
+    pub async fn switch_mode(&self, mode: u8) {
+        MODE_CHANNEL.send(ModeEvent::SwitchMode(mode)).await;
+    }
 }
 
 pub struct Modes {
@@ -56,6 +64,7 @@ pub struct Modes {
     state: ModeTxnState,
     active: ActiveMode,
     text: Text,
+    tui: Tui,
 }
 
 impl Modes {
@@ -65,6 +74,7 @@ impl Modes {
             state: ModeTxnState::AwaitOpcode,
             active: ActiveMode::Text,
             text: Text::new(),
+            tui: Tui::new(),
         }
     }
 
@@ -73,6 +83,7 @@ impl Modes {
             ModeEvent::StartTxn => self.handle_start_txn(),
             ModeEvent::Consume(byte) => self.handle_consume(byte),
             ModeEvent::EndTxn => self.handle_end_txn(),
+            ModeEvent::SwitchMode(mode) => self.handle_mode_switch(mode),
         }
     }
 
@@ -81,6 +92,7 @@ impl Modes {
         self.state = ModeTxnState::AwaitOpcode;
         match self.active {
             ActiveMode::Text => self.text.start_txn(&mut self.buf),
+            ActiveMode::Tui => self.tui.start_txn(&mut self.buf),
         }
     }
 
@@ -88,6 +100,7 @@ impl Modes {
         match self.state {
             ModeTxnState::AwaitOpcode => {
                 if byte == SWITCH_MODE_OPCODE {
+                    log::info!("modes: switch mode opcode");
                     self.state = ModeTxnState::AwaitMode;
                     return;
                 }
@@ -95,6 +108,7 @@ impl Modes {
                 self.state = ModeTxnState::Active;
                 match self.active {
                     ActiveMode::Text => self.text.consume(&mut self.buf, byte),
+                    ActiveMode::Tui => self.tui.consume(&mut self.buf, byte),
                 }
             }
             ModeTxnState::AwaitMode => {
@@ -102,6 +116,7 @@ impl Modes {
             }
             ModeTxnState::Active => match self.active {
                 ActiveMode::Text => self.text.consume(&mut self.buf, byte),
+                ActiveMode::Tui => self.tui.consume(&mut self.buf, byte),
             },
         }
     }
@@ -110,13 +125,25 @@ impl Modes {
         self.state = ModeTxnState::AwaitOpcode;
         match self.active {
             ActiveMode::Text => self.text.end_txn(&mut self.buf),
+            ActiveMode::Tui => self.tui.end_txn(&mut self.buf),
         }
     }
 
     fn handle_mode_switch(&mut self, mode: u8) {
         self.active = match mode {
-            MODE_TEXT => ActiveMode::Text,
-            _ => return,
+            MODE_TEXT => {
+                log::info!("modes: switch to text");
+                ActiveMode::Text
+            }
+            MODE_TUI => {
+                log::info!("modes: switch to tui");
+                ActiveMode::Tui
+            }
+            _ => {
+                log::info!("modes: unknown mode 0x{:02X}", mode);
+                self.state = ModeTxnState::Active;
+                return;
+            }
         };
         self.reset();
         self.state = ModeTxnState::Active;
@@ -125,18 +152,21 @@ impl Modes {
     fn reset(&mut self) {
         match self.active {
             ActiveMode::Text => self.text.reset(),
+            ActiveMode::Tui => self.tui.reset(),
         }
     }
 
     fn tick(&mut self) {
         match self.active {
             ActiveMode::Text => self.text.tick(),
+            ActiveMode::Tui => self.tui.tick(),
         }
     }
 
     async fn render(&mut self, display: &mut DisplayHandle) {
         match self.active {
             ActiveMode::Text => self.text.render(display).await,
+            ActiveMode::Tui => self.tui.render(display).await,
         }
     }
 }

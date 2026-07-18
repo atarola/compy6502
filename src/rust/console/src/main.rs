@@ -95,6 +95,6 @@ async fn main(spawner: Spawner) {
     keyboard::keyboard_init(&spawner, max_device).await;
     modes::modes_init(spawner);
     host::host_init(spawner, p.CORE1, pio0, p.PIN_0, p.PIN_1, p.PIN_2, p.PIN_3);
-    
+
     spawner.spawn(blink_task(led)).unwrap();
 }

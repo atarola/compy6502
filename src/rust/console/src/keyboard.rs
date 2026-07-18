@@ -186,7 +186,13 @@ async fn dispatch_pkt(device: &mut MaxSpiDevice, token: u8, ep: u8, nak_limit: u
 
 // dispatch tokIN on ep, drain RCVFIFO into buf, repeat until short packet or buf full
 // returns 0 on success, hrXxx on error
-async fn in_transfer(device: &mut MaxSpiDevice, ep: u8, max_packet: u8, buf: &mut [u8], nak_limit: u8) -> u8 {
+async fn in_transfer(
+    device: &mut MaxSpiDevice,
+    ep: u8,
+    max_packet: u8,
+    buf: &mut [u8],
+    nak_limit: u8,
+) -> u8 {
     let mut result;
     let mut xfrlen = 0;
 
@@ -415,7 +421,14 @@ async fn poll_hid(device: &mut MaxSpiDevice, ep: &HidEndpoint) {
             return;
         }
 
-        let response = in_transfer(device, ep.addr & 0x0F, ep.max_packet, &mut curr, NAK_LIMIT_HID).await;
+        let response = in_transfer(
+            device,
+            ep.addr & 0x0F,
+            ep.max_packet,
+            &mut curr,
+            NAK_LIMIT_HID,
+        )
+        .await;
         if response == 0 {
             process_report(&curr, &prev).await;
             prev = curr;

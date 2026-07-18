@@ -10,6 +10,7 @@ use crate::modes::ModeHandle;
 
 const CMD_READ_STATUS: u8 = 0x01;
 const CMD_GET_CHAR: u8 = 0x20;
+const CMD_SWITCH_MODE: u8 = 0xFF;
 
 fn decode_rx(word: u32) -> u8 {
     (word & 0xff) as u8
@@ -65,7 +66,7 @@ async fn host_task(
                 wait 0 gpio 2
                 jmp x-- bitloop
                 push
-                pull block
+                pull noblock
                 jmp byte
             flush:
                 mov isr, null
@@ -95,22 +96,33 @@ async fn host_task(
     sm.set_enable(true);
 
     let mode_handle = ModeHandle::new();
+    let mut switching_mode = false;
 
     loop {
         let word = sm.rx().wait_pull().await;
         let rx = decode_rx(word);
         let mut next_tx = 0u8;
 
-        match rx {
-            0x00 => {}
-            CMD_READ_STATUS => {
-                next_tx = KeyboardHandle::new().has_data() as u8;
-            }
-            CMD_GET_CHAR => {
-                next_tx = KeyboardHandle::new().get_char().await.unwrap_or(0);
-            }
-            _ => {
-                mode_handle.consume(rx).await;
+        if switching_mode {
+            switching_mode = false;
+            log::info!("host: mode byte 0x{:02X}", rx);
+            mode_handle.switch_mode(rx).await;
+        } else {
+            match rx {
+                0x00 => {}
+                CMD_READ_STATUS => {
+                    next_tx = KeyboardHandle::new().has_data() as u8;
+                }
+                CMD_GET_CHAR => {
+                    next_tx = KeyboardHandle::new().get_char().await.unwrap_or(0);
+                }
+                CMD_SWITCH_MODE => {
+                    log::info!("host: switch mode opcode");
+                    switching_mode = true;
+                }
+                _ => {
+                    mode_handle.consume(rx).await;
+                }
             }
         }
 

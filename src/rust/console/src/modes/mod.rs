@@ -4,6 +4,7 @@ use crate::display::DisplayHandle;
 
 pub mod manager;
 pub mod text;
+pub mod tui;
 
 pub struct CommandBuffer {
     pub buf: Vec<u8, 256>,

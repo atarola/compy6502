@@ -1,9 +1,9 @@
 use heapless::Vec;
 
-use crate::display::DisplayHandle;
-use crate::modes::{CommandBuffer, DisplayMode};
 use self::AnsiCmd::{Backspace, Newline, PutChar};
 use self::AnsiState::{Escape, Normal, Sequence};
+use crate::display::DisplayHandle;
+use crate::modes::{CommandBuffer, DisplayMode};
 
 const CMD_PUT_CHAR: u8 = 0x21;
 const COLS: usize = 58;
@@ -11,8 +11,7 @@ const ROWS: usize = 17;
 
 // ANSI color index to TEXTVGA palette index.
 const ANSI_TO_TEXTVGA: [u8; 16] = [
-    0x00, 0x04, 0x02, 0x06, 0x01, 0x05, 0x03, 0x07, 0x08, 0x0C, 0x0A, 0x0E, 0x09, 0x0D,
-    0x0B, 0x0F,
+    0x00, 0x04, 0x02, 0x06, 0x01, 0x05, 0x03, 0x07, 0x08, 0x0C, 0x0A, 0x0E, 0x09, 0x0D, 0x0B, 0x0F,
 ];
 
 #[derive(Clone, Copy)]
@@ -112,12 +111,32 @@ impl AnsiParser {
         match cmd {
             b'H' | b'f' => Some(AnsiCmd::CursorPos(
                 params[0].saturating_sub(1),
-                if count >= 2 { params[1].saturating_sub(1) } else { 0 },
+                if count >= 2 {
+                    params[1].saturating_sub(1)
+                } else {
+                    0
+                },
             )),
-            b'A' => Some(AnsiCmd::CursorUp(if params[0] == 0 { 1 } else { params[0] })),
-            b'B' => Some(AnsiCmd::CursorDown(if params[0] == 0 { 1 } else { params[0] })),
-            b'C' => Some(AnsiCmd::CursorRight(if params[0] == 0 { 1 } else { params[0] })),
-            b'D' => Some(AnsiCmd::CursorLeft(if params[0] == 0 { 1 } else { params[0] })),
+            b'A' => Some(AnsiCmd::CursorUp(if params[0] == 0 {
+                1
+            } else {
+                params[0]
+            })),
+            b'B' => Some(AnsiCmd::CursorDown(if params[0] == 0 {
+                1
+            } else {
+                params[0]
+            })),
+            b'C' => Some(AnsiCmd::CursorRight(if params[0] == 0 {
+                1
+            } else {
+                params[0]
+            })),
+            b'D' => Some(AnsiCmd::CursorLeft(if params[0] == 0 {
+                1
+            } else {
+                params[0]
+            })),
             b'J' => Some(AnsiCmd::EraseScreen),
             b'K' => Some(if params[0] == 2 {
                 AnsiCmd::EraseLineFull
@@ -175,7 +194,10 @@ struct TextState {
 impl TextState {
     fn new() -> TextState {
         TextState {
-            grid: [[Cell { ch: b' ', attr: 0x0A }; COLS]; ROWS],
+            grid: [[Cell {
+                ch: b' ',
+                attr: 0x0A,
+            }; COLS]; ROWS],
             cursor_x: 0,
             cursor_y: 0,
             attr: 0x0A,
@@ -218,7 +240,10 @@ impl TextState {
             self.cursor_x -= 1;
             let x = self.cursor_x as usize;
             let y = self.cursor_y as usize;
-            self.grid[y][x] = Cell { ch: b' ', attr: self.attr };
+            self.grid[y][x] = Cell {
+                ch: b' ',
+                attr: self.attr,
+            };
             self.dirty = true;
         }
     }
@@ -286,7 +311,10 @@ impl TextState {
     fn clear(&mut self) {
         for row in self.grid.iter_mut() {
             for cell in row.iter_mut() {
-                *cell = Cell { ch: b' ', attr: self.attr };
+                *cell = Cell {
+                    ch: b' ',
+                    attr: self.attr,
+                };
             }
         }
         self.cursor_x = 0;
@@ -297,7 +325,10 @@ impl TextState {
     fn row_clear(&mut self) {
         let row = self.cursor_y as usize;
         for cell in self.grid[row].iter_mut() {
-            *cell = Cell { ch: b' ', attr: self.attr };
+            *cell = Cell {
+                ch: b' ',
+                attr: self.attr,
+            };
         }
         self.dirty = true;
     }
@@ -306,7 +337,10 @@ impl TextState {
         self.grid.rotate_left(1);
         let last = ROWS - 1;
         for cell in self.grid[last].iter_mut() {
-            *cell = Cell { ch: b' ', attr: self.attr };
+            *cell = Cell {
+                ch: b' ',
+                attr: self.attr,
+            };
         }
         self.dirty = true;
     }
@@ -314,7 +348,10 @@ impl TextState {
     fn put_character(&mut self, c: u8) {
         let x = self.cursor_x as usize;
         let y = self.cursor_y as usize;
-        self.grid[y][x] = Cell { ch: c, attr: self.attr };
+        self.grid[y][x] = Cell {
+            ch: c,
+            attr: self.attr,
+        };
         self.cursor_x += 1;
         if self.cursor_x as usize >= COLS {
             self.cursor_x = 0;
