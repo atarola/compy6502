@@ -11,6 +11,11 @@ const CMD_COMMIT: u8 = 0x1F;
 const CMD_DESTROY: u8 = 0x11;
 const CMD_CREATE: u8 = 0x10;
 
+const KIND_ROOT: u8 = 0x00;
+const KIND_PANEL: u8 = 0x01;
+const KIND_HPANEL: u8 = 0x02;
+const KIND_VPANEL: u8 = 0x03;
+
 pub struct Tui {
     live: NodeTable,
     staged: NodeTable,
@@ -41,7 +46,7 @@ impl DisplayMode for Tui {
             }
             [CMD_COMMIT] => {
                 log::info!("tui: commit");
-                core::mem::swap(&mut self.live, &mut self.staged);
+                self.live = self.staged.clone();
                 self.dirty = true;
             }
             [CMD_DESTROY, handle] => {
@@ -86,11 +91,21 @@ fn render_node(table: &NodeTable, handle: u8, depth: usize) {
 
     let node = table.node(handle);
     let indent = INDENT.get(depth).copied().unwrap_or("              ");
-    log::info!("tui: {}- 0x{:02X}", indent, handle);
+    log::info!("tui: {}- 0x{:02X} kind={}", indent, handle, kind_name(node.kind));
 
     let mut child = node.first_child;
     while child != NO_NODE {
         render_node(table, child, depth + 1);
         child = table.node(child).next_sibling;
+    }
+}
+
+fn kind_name(kind: u8) -> &'static str {
+    match kind {
+        KIND_ROOT => "root",
+        KIND_PANEL => "panel",
+        KIND_HPANEL => "hpanel",
+        KIND_VPANEL => "vpanel",
+        _ => "unknown",
     }
 }

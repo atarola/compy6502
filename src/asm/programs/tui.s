@@ -4,6 +4,9 @@
 
 MODE_SWITCH = $FF
 MODE_TUI    = $01
+KIND_PANEL   = $01
+KIND_HPANEL  = $02
+KIND_VPANEL  = $03
 TUI_DESTROY  = $11
 TUI_REVERT   = $1E
 TUI_COMMIT   = $1F
@@ -76,7 +79,7 @@ tui_create_01:
   bcs @create_01_done
   lda #TUI_CREATE
   jsr SPI_WRITE
-  lda #$01
+  lda #KIND_PANEL
   jsr SPI_WRITE
   lda #$01
   jsr SPI_WRITE
@@ -100,7 +103,7 @@ tui_create_02:
   bcs @create_02_done
   lda #TUI_CREATE
   jsr SPI_WRITE
-  lda #$01
+  lda #KIND_HPANEL
   jsr SPI_WRITE
   lda #$02
   jsr SPI_WRITE
@@ -124,7 +127,7 @@ tui_create_03:
   bcs @create_03_done
   lda #TUI_CREATE
   jsr SPI_WRITE
-  lda #$01
+  lda #KIND_VPANEL
   jsr SPI_WRITE
   lda #$03
   jsr SPI_WRITE
