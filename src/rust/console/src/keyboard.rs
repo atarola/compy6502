@@ -9,6 +9,7 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
 use embassy_time::Timer;
 use embedded_hal_async::spi::{Operation, SpiDevice};
+use portable_atomic::{AtomicU32, Ordering};
 
 use crate::keymap::*;
 use crate::max3421e::*;
@@ -21,6 +22,10 @@ type MaxSpiDevice = SpiDeviceWithConfig<
 >;
 
 static KEYBOARD_CHANNEL: Channel<CriticalSectionRawMutex, u8, 64> = Channel::new();
+static KEYBOARD_QUEUED: AtomicU32 = AtomicU32::new(0);
+static KEYBOARD_ENQUEUED: AtomicU32 = AtomicU32::new(0);
+static KEYBOARD_DEQUEUED: AtomicU32 = AtomicU32::new(0);
+static KEYBOARD_REPORTS: AtomicU32 = AtomicU32::new(0);
 
 struct HidEndpoint {
     addr: u8,
@@ -35,12 +40,30 @@ impl KeyboardHandle {
     }
 
     pub fn has_data(&self) -> bool {
-        KEYBOARD_CHANNEL.len() > 0
+        KEYBOARD_QUEUED.load(Ordering::Relaxed) > 0
     }
 
     pub async fn get_char(&self) -> Option<u8> {
-        KEYBOARD_CHANNEL.try_receive().ok()
+        let ch = KEYBOARD_CHANNEL.try_receive().ok()?;
+        KEYBOARD_QUEUED.fetch_sub(1, Ordering::Relaxed);
+        KEYBOARD_DEQUEUED.fetch_add(1, Ordering::Relaxed);
+        Some(ch)
     }
+}
+
+pub fn take_stats() -> (u32, u32, u32, u32) {
+    (
+        KEYBOARD_REPORTS.swap(0, Ordering::Relaxed),
+        KEYBOARD_ENQUEUED.swap(0, Ordering::Relaxed),
+        KEYBOARD_DEQUEUED.swap(0, Ordering::Relaxed),
+        KEYBOARD_QUEUED.load(Ordering::Relaxed),
+    )
+}
+
+async fn enqueue_key(byte: u8) {
+    KEYBOARD_CHANNEL.send(byte).await;
+    KEYBOARD_QUEUED.fetch_add(1, Ordering::Relaxed);
+    KEYBOARD_ENQUEUED.fetch_add(1, Ordering::Relaxed);
 }
 
 pub async fn keyboard_init(spawner: &Spawner, mut device: MaxSpiDevice) {
@@ -430,6 +453,7 @@ async fn poll_hid(device: &mut MaxSpiDevice, ep: &HidEndpoint) {
         )
         .await;
         if response == 0 {
+            KEYBOARD_REPORTS.fetch_add(1, Ordering::Relaxed);
             process_report(&curr, &prev).await;
             prev = curr;
         }
@@ -462,14 +486,14 @@ async fn process_report(curr: &[u8; 8], prev: &[u8; 8]) {
         if keycode < 128 {
             let ascii = KEYCODE_TO_ASCII[keycode as usize][shift as usize];
             if ascii != 0 {
-                KEYBOARD_CHANNEL.send(ascii).await;
+                enqueue_key(ascii).await;
                 continue;
             }
         }
 
         if let Some(&seq) = KEYCODE_TO_ANSI.get(&keycode) {
             for &item in seq {
-                KEYBOARD_CHANNEL.send(item).await;
+                enqueue_key(item).await;
             }
         }
     }

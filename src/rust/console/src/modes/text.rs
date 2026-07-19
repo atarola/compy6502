@@ -8,6 +8,7 @@ use crate::modes::DisplayMode;
 const CMD_PUT_CHAR: u8 = 0x21;
 const COLS: usize = 58;
 const ROWS: usize = 17;
+const CURSOR_IDLE_TICKS: u8 = 8;
 
 // ANSI color index to TEXTVGA palette index.
 const ANSI_TO_TEXTVGA: [u8; 16] = [
@@ -189,6 +190,7 @@ struct TextState {
     attr: u8,
     cursor_visible: bool,
     dirty: bool,
+    idle_ticks: u8,
 }
 
 impl TextState {
@@ -203,6 +205,7 @@ impl TextState {
             attr: 0x0A,
             cursor_visible: true,
             dirty: true,
+            idle_ticks: CURSOR_IDLE_TICKS,
         }
     }
 
@@ -304,7 +307,20 @@ impl TextState {
     }
 
     fn blink(&mut self) {
+        if self.idle_ticks < CURSOR_IDLE_TICKS {
+            self.idle_ticks += 1;
+            self.cursor_visible = false;
+            self.dirty = true;
+            return;
+        }
+
         self.cursor_visible = !self.cursor_visible;
+        self.dirty = true;
+    }
+
+    fn mark_active(&mut self) {
+        self.idle_ticks = 0;
+        self.cursor_visible = false;
         self.dirty = true;
     }
 
@@ -361,6 +377,7 @@ impl TextState {
                 self.scroll();
             }
         }
+        self.mark_active();
         self.dirty = true;
     }
 }

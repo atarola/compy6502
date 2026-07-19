@@ -22,12 +22,14 @@ const CS_LOW_MARKER: u32 = u32::MAX;
 const CS_HIGH_MARKER: u32 = u32::MAX - 1;
 const HOST_TXN_QUEUE_DEPTH: usize = 64;
 const HOST_TXN_CAPACITY: usize = 32;
+const HOST_READY_FREE_SLOTS: u32 = 8;
 
 static HOST_TXN_CHANNEL: Channel<CriticalSectionRawMutex, HostTxn, HOST_TXN_QUEUE_DEPTH> =
     Channel::new();
 static HOST_TXN_ENQUEUED: AtomicU32 = AtomicU32::new(0);
 static HOST_TXN_DROPPED: AtomicU32 = AtomicU32::new(0);
-static HOST_TXN_QUEUED: AtomicU32 = AtomicU32::new(0);
+static HOST_STATUS_READS: AtomicU32 = AtomicU32::new(0);
+static HOST_GET_CHAR_READS: AtomicU32 = AtomicU32::new(0);
 
 pub struct HostTxn {
     buf: Vec<u8, HOST_TXN_CAPACITY>,
@@ -91,7 +93,6 @@ fn enqueue_txn(buf: &CommandBuffer) {
     if let Some(txn) = HostTxn::from_buffer(buf) {
         match HOST_TXN_CHANNEL.try_send(txn) {
             Ok(()) => {
-                HOST_TXN_QUEUED.fetch_add(1, Ordering::Relaxed);
                 HOST_TXN_ENQUEUED.fetch_add(1, Ordering::Relaxed);
             }
             Err(_) => {
@@ -102,15 +103,11 @@ fn enqueue_txn(buf: &CommandBuffer) {
 }
 
 pub async fn receive_txn() -> HostTxn {
-    let txn = HOST_TXN_CHANNEL.receive().await;
-    HOST_TXN_QUEUED.fetch_sub(1, Ordering::Relaxed);
-    txn
+    HOST_TXN_CHANNEL.receive().await
 }
 
 pub fn try_receive_txn() -> Option<HostTxn> {
-    let txn = HOST_TXN_CHANNEL.try_receive().ok()?;
-    HOST_TXN_QUEUED.fetch_sub(1, Ordering::Relaxed);
-    Some(txn)
+    HOST_TXN_CHANNEL.try_receive().ok()
 }
 
 fn status_byte() -> u8 {
@@ -119,17 +116,38 @@ fn status_byte() -> u8 {
     if KeyboardHandle::new().has_data() {
         status |= STATUS_KEYBOARD_READY;
     }
-    if HOST_TXN_QUEUED.load(Ordering::Relaxed) < HOST_TXN_QUEUE_DEPTH as u32 {
+    let queued = HOST_TXN_CHANNEL.len() as u32;
+    if (HOST_TXN_QUEUE_DEPTH as u32).saturating_sub(queued) >= HOST_READY_FREE_SLOTS {
         status |= STATUS_HOST_READY;
     }
 
     status
 }
 
-pub fn take_txn_stats() -> (u32, u32) {
+async fn next_response(rx: u8, txn_buf: &CommandBuffer) -> u8 {
+    if !txn_buf.buf.is_empty() {
+        return 0;
+    }
+
+    match rx {
+        CMD_READ_STATUS => {
+            HOST_STATUS_READS.fetch_add(1, Ordering::Relaxed);
+            status_byte()
+        }
+        CMD_GET_CHAR => {
+            HOST_GET_CHAR_READS.fetch_add(1, Ordering::Relaxed);
+            KeyboardHandle::new().get_char().await.unwrap_or(0)
+        }
+        _ => 0,
+    }
+}
+
+pub fn take_txn_stats() -> (u32, u32, u32, u32) {
     (
         HOST_TXN_ENQUEUED.swap(0, Ordering::Relaxed),
         HOST_TXN_DROPPED.swap(0, Ordering::Relaxed),
+        HOST_STATUS_READS.swap(0, Ordering::Relaxed),
+        HOST_GET_CHAR_READS.swap(0, Ordering::Relaxed),
     )
 }
 
@@ -217,7 +235,7 @@ async fn pio_task(
                 wait 0 gpio 2
                 jmp x-- bitloop
                 push
-                pull noblock
+                pull block
                 jmp byte
             flush:
                 mov isr, null
@@ -276,39 +294,28 @@ async fn pio_task(
     let mut txn_done = false;
 
     loop {
-        poll_cs_edges(&mut cs_sm, &mut txn_buf, &mut in_txn, &mut txn_done);
-        if txn_done {
-            drain_spi_rx(&mut sm, &mut txn_buf, in_txn);
-            enqueue_txn(&txn_buf);
-            txn_buf.clear();
-            in_txn = false;
-            txn_done = false;
-            continue;
-        }
-
         let word = match select(sm.rx().wait_pull(), Timer::after_micros(10)).await {
             Either::First(word) => word,
-            Either::Second(_) => continue,
+            Either::Second(_) => {
+                poll_cs_edges(&mut cs_sm, &mut txn_buf, &mut in_txn, &mut txn_done);
+                if txn_done {
+                    drain_spi_rx(&mut sm, &mut txn_buf, in_txn);
+                    enqueue_txn(&txn_buf);
+                    txn_buf.clear();
+                    in_txn = false;
+                    txn_done = false;
+                }
+                continue;
+            }
         };
         poll_cs_edges(&mut cs_sm, &mut txn_buf, &mut in_txn, &mut txn_done);
 
         let rx = decode_rx(word);
-        let mut next_tx = 0u8;
         if !in_txn && !txn_done {
             txn_buf.clear();
             in_txn = true;
         }
-        if txn_buf.buf.is_empty() {
-            match rx {
-                CMD_READ_STATUS => {
-                    next_tx = status_byte();
-                }
-                CMD_GET_CHAR => {
-                    next_tx = KeyboardHandle::new().get_char().await.unwrap_or(0);
-                }
-                _ => {}
-            }
-        }
+        let next_tx = next_response(rx, &txn_buf).await;
 
         if in_txn || txn_done {
             txn_buf.push(rx);
