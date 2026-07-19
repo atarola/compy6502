@@ -10,11 +10,15 @@ const CMD_REVERT: u8 = 0x1E;
 const CMD_COMMIT: u8 = 0x1F;
 const CMD_DESTROY: u8 = 0x11;
 const CMD_CREATE: u8 = 0x10;
+const CMD_SET: u8 = 0x12;
 
 const KIND_ROOT: u8 = 0x00;
 const KIND_PANEL: u8 = 0x01;
 const KIND_HPANEL: u8 = 0x02;
 const KIND_VPANEL: u8 = 0x03;
+const KIND_LABEL: u8 = 0x04;
+const KIND_ITEM: u8 = 0x05;
+const KIND_LISTBOX: u8 = 0x06;
 
 pub struct Tui {
     live: NodeTable,
@@ -65,6 +69,16 @@ impl DisplayMode for Tui {
                     self.dirty = true;
                 }
             }
+            [CMD_SET, handle, key, value] => {
+                log::info!(
+                    "tui: set handle=0x{:02X} key=0x{:02X} value=0x{:02X}",
+                    handle,
+                    key,
+                    value
+                );
+                self.staged.set_prop(*handle, *key, *value);
+                self.dirty = true;
+            }
             _ => return,
         }
     }
@@ -93,6 +107,17 @@ fn render_node(table: &NodeTable, handle: u8, depth: usize) {
     let indent = INDENT.get(depth).copied().unwrap_or("              ");
     log::info!("tui: {}- 0x{:02X} kind={}", indent, handle, kind_name(node.kind));
 
+    if node.props[0] != 0 || node.props[1] != 0 || node.props[2] != 0 || node.props[3] != 0 {
+        log::info!(
+            "tui: {}  props x={} y={} w={} h={}",
+            indent,
+            node.props[0],
+            node.props[1],
+            node.props[2],
+            node.props[3]
+        );
+    }
+
     let mut child = node.first_child;
     while child != NO_NODE {
         render_node(table, child, depth + 1);
@@ -106,6 +131,9 @@ fn kind_name(kind: u8) -> &'static str {
         KIND_PANEL => "panel",
         KIND_HPANEL => "hpanel",
         KIND_VPANEL => "vpanel",
+        KIND_LABEL => "label",
+        KIND_ITEM => "item",
+        KIND_LISTBOX => "listbox",
         _ => "unknown",
     }
 }

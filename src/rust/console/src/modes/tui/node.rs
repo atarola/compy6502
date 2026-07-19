@@ -1,5 +1,15 @@
 const NODE_CAP: usize = 64;
+const PROP_CAP: usize = 8;
 pub const NO_NODE: u8 = 0xFF;
+
+pub const PROP_X: u8 = 0x00;
+pub const PROP_Y: u8 = 0x01;
+pub const PROP_WIDTH: u8 = 0x02;
+pub const PROP_HEIGHT: u8 = 0x03;
+pub const PROP_VISIBLE: u8 = 0x04;
+pub const PROP_FOCUS: u8 = 0x05;
+pub const PROP_TEXT_HANDLE: u8 = 0x06;
+pub const PROP_FLEX: u8 = 0x07;
 
 #[derive(Clone, Copy, Default)]
 pub struct Node {
@@ -9,6 +19,7 @@ pub struct Node {
     pub first_child: u8,
     pub next_sibling: u8,
     pub prev_sibling: u8,
+    pub props: [u8; PROP_CAP],
 }
 
 impl Node {
@@ -20,6 +31,7 @@ impl Node {
             first_child: NO_NODE,
             next_sibling: NO_NODE,
             prev_sibling: NO_NODE,
+            props: [0; PROP_CAP],
         }
     }
 
@@ -31,6 +43,7 @@ impl Node {
             first_child: NO_NODE,
             next_sibling: NO_NODE,
             prev_sibling: NO_NODE,
+            props: [0; PROP_CAP],
         }
     }
 }
@@ -110,6 +123,7 @@ impl NodeTable {
             first_child: NO_NODE,
             next_sibling: old_first,
             prev_sibling: NO_NODE,
+            props: [0; PROP_CAP],
         };
 
         if old_first != NO_NODE {
@@ -118,5 +132,19 @@ impl NodeTable {
 
         self.nodes[parent as usize].first_child = handle;
         true
+    }
+
+    pub fn set_prop(&mut self, handle: u8, key: u8, value: u8) {
+        if handle as usize >= NODE_CAP || key as usize >= PROP_CAP {
+            return;
+        }
+        self.nodes[handle as usize].props[key as usize] = value;
+    }
+
+    pub fn get_prop(&self, handle: u8, key: u8) -> u8 {
+        if handle as usize >= NODE_CAP || key as usize >= PROP_CAP {
+            return 0;
+        }
+        self.nodes[handle as usize].props[key as usize]
     }
 }
