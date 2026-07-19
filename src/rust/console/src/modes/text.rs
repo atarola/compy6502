@@ -387,6 +387,7 @@ impl Text {
             self.state.apply(cmd);
         }
     }
+
 }
 
 impl DisplayMode for Text {

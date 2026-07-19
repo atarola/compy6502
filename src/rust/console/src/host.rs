@@ -16,15 +16,18 @@ use crate::keyboard::KeyboardHandle;
 const CMD_READ_STATUS: u8 = 0x01;
 const CMD_GET_CHAR: u8 = 0x20;
 pub const CMD_WAKEUP: u8 = 0x5A;
+const STATUS_KEYBOARD_READY: u8 = 0x01;
+const STATUS_HOST_READY: u8 = 0x02;
 const CS_LOW_MARKER: u32 = u32::MAX;
 const CS_HIGH_MARKER: u32 = u32::MAX - 1;
 const HOST_TXN_QUEUE_DEPTH: usize = 64;
-const HOST_TXN_CAPACITY: usize = 16;
+const HOST_TXN_CAPACITY: usize = 32;
 
 static HOST_TXN_CHANNEL: Channel<CriticalSectionRawMutex, HostTxn, HOST_TXN_QUEUE_DEPTH> =
     Channel::new();
 static HOST_TXN_ENQUEUED: AtomicU32 = AtomicU32::new(0);
 static HOST_TXN_DROPPED: AtomicU32 = AtomicU32::new(0);
+static HOST_TXN_QUEUED: AtomicU32 = AtomicU32::new(0);
 
 pub struct HostTxn {
     buf: Vec<u8, HOST_TXN_CAPACITY>,
@@ -80,9 +83,15 @@ fn decode_rx(word: u32) -> u8 {
 }
 
 fn enqueue_txn(buf: &CommandBuffer) {
+    match buf.buf.first().copied() {
+        Some(CMD_READ_STATUS | CMD_GET_CHAR) | None => return,
+        _ => {}
+    }
+
     if let Some(txn) = HostTxn::from_buffer(buf) {
         match HOST_TXN_CHANNEL.try_send(txn) {
             Ok(()) => {
+                HOST_TXN_QUEUED.fetch_add(1, Ordering::Relaxed);
                 HOST_TXN_ENQUEUED.fetch_add(1, Ordering::Relaxed);
             }
             Err(_) => {
@@ -93,11 +102,28 @@ fn enqueue_txn(buf: &CommandBuffer) {
 }
 
 pub async fn receive_txn() -> HostTxn {
-    HOST_TXN_CHANNEL.receive().await
+    let txn = HOST_TXN_CHANNEL.receive().await;
+    HOST_TXN_QUEUED.fetch_sub(1, Ordering::Relaxed);
+    txn
 }
 
 pub fn try_receive_txn() -> Option<HostTxn> {
-    HOST_TXN_CHANNEL.try_receive().ok()
+    let txn = HOST_TXN_CHANNEL.try_receive().ok()?;
+    HOST_TXN_QUEUED.fetch_sub(1, Ordering::Relaxed);
+    Some(txn)
+}
+
+fn status_byte() -> u8 {
+    let mut status = 0;
+
+    if KeyboardHandle::new().has_data() {
+        status |= STATUS_KEYBOARD_READY;
+    }
+    if HOST_TXN_QUEUED.load(Ordering::Relaxed) < HOST_TXN_QUEUE_DEPTH as u32 {
+        status |= STATUS_HOST_READY;
+    }
+
+    status
 }
 
 pub fn take_txn_stats() -> (u32, u32) {
@@ -275,7 +301,7 @@ async fn pio_task(
         if txn_buf.buf.is_empty() {
             match rx {
                 CMD_READ_STATUS => {
-                    next_tx = KeyboardHandle::new().has_data() as u8;
+                    next_tx = status_byte();
                 }
                 CMD_GET_CHAR => {
                     next_tx = KeyboardHandle::new().get_char().await.unwrap_or(0);
