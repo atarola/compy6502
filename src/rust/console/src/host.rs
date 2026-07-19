@@ -268,6 +268,7 @@ async fn pio_task(
                     txn_buf.clear();
                     in_txn = false;
                     txn_done = false;
+                    Timer::after_micros(10).await;
                 }
                 continue;
             }
@@ -288,6 +289,7 @@ async fn pio_task(
                 txn_buf.clear();
                 in_txn = false;
                 txn_done = false;
+                Timer::after_micros(10).await;
             }
         }
         sm.tx().wait_push((next_tx as u32) << 24).await;

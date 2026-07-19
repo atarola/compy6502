@@ -21,25 +21,69 @@ TUI_CREATE   = $10
   jsr tui_mode
   bcs @error
 
-  jsr tui_create_01
+; --- Test 1: No-revert commit chain ---
+  jsr tui_create_01        ; create 0x01 panel
+  bcs @error
+  jsr tui_commit           ; live: 0x01
   bcs @error
 
-  jsr tui_revert
+  jsr tui_create_02        ; create 0x02 hpanel
+  bcs @error
+  jsr tui_commit           ; live: 0x01, 0x02
   bcs @error
 
-  jsr tui_create_02
+; --- Test 2: Double revert (harmless) ---
+  jsr tui_create_03        ; create 0x03 vpanel
+  bcs @error
+  jsr tui_revert           ; revert: staged back to live
+  bcs @error
+  jsr tui_revert           ; second revert: no-op
+  bcs @error
+  jsr tui_commit           ; live: 0x01, 0x02
   bcs @error
 
-  jsr tui_commit
+; --- Test 3: Destroy nonexistent (no-op) ---
+  lda #$04
+  jsr tui_destroy          ; destroy 0x04: doesn't exist
+  bcs @error
+  jsr tui_commit           ; live: 0x01, 0x02 (unchanged)
   bcs @error
 
-  jsr tui_destroy_02
+; --- Test 4: Destroy after commit ---
+  lda #$02
+  jsr tui_destroy          ; destroy 0x02
+  bcs @error
+  jsr tui_commit           ; live: 0x01
   bcs @error
 
-  jsr tui_create_03
+; --- Test 5: Create-replace existing handle ---
+  jsr tui_create_01h       ; create 0x01 hpanel (replaces panel)
+  bcs @error
+  jsr tui_commit           ; live: 0x01 hpanel
   bcs @error
 
-  jsr tui_commit
+; --- Test 6: Empty commit (no-op) ---
+  jsr tui_commit           ; live: 0x01 hpanel (unchanged)
+  bcs @error
+
+; --- Test 7: Multiple creates, single commit ---
+  jsr tui_create_02v       ; create 0x02 vpanel
+  bcs @error
+  jsr tui_create_03p       ; create 0x03 panel
+  bcs @error
+  jsr tui_commit           ; live: 0x01 hpanel, 0x03 panel, 0x02 vpanel
+  bcs @error
+
+; --- Test 8: Revert undoes all staged changes ---
+  lda #$01
+  jsr tui_destroy          ; destroy 0x01
+  bcs @error
+  lda #$02
+  jsr tui_destroy          ; destroy 0x02
+  bcs @error
+  jsr tui_revert           ; revert: staged back to live
+  bcs @error
+  jsr tui_commit           ; live: 0x01 hpanel, 0x03 panel, 0x02 vpanel
   bcs @error
 
 @done:
@@ -69,14 +113,14 @@ tui_mode:
 @done:
   rts
 
-; Send a TUI create transaction for handle 0x01.
+; Send a TUI create transaction for handle 0x01 (panel).
 ; in:  none
 ; out: carry clear = success
 ;      carry set   = error
 ; clobbers: A, flags
 tui_create_01:
   jsr SPI_SELECT
-  bcs @create_01_done
+  bcs @done
   lda #TUI_CREATE
   jsr SPI_WRITE
   lda #KIND_PANEL
@@ -86,21 +130,45 @@ tui_create_01:
   lda #$00
   jsr SPI_WRITE
 
-@create_01_deselect:
+@deselect:
   pha
   jsr SPI_DESELECT
   pla
-@create_01_done:
+@done:
   rts
 
-; Send a TUI create transaction for handle 0x02.
+; Send a TUI create transaction for handle 0x01 (hpanel).
+; in:  none
+; out: carry clear = success
+;      carry set   = error
+; clobbers: A, flags
+tui_create_01h:
+  jsr SPI_SELECT
+  bcs @done
+  lda #TUI_CREATE
+  jsr SPI_WRITE
+  lda #KIND_HPANEL
+  jsr SPI_WRITE
+  lda #$01
+  jsr SPI_WRITE
+  lda #$00
+  jsr SPI_WRITE
+
+@deselect:
+  pha
+  jsr SPI_DESELECT
+  pla
+@done:
+  rts
+
+; Send a TUI create transaction for handle 0x02 (hpanel).
 ; in:  none
 ; out: carry clear = success
 ;      carry set   = error
 ; clobbers: A, flags
 tui_create_02:
   jsr SPI_SELECT
-  bcs @create_02_done
+  bcs @done
   lda #TUI_CREATE
   jsr SPI_WRITE
   lda #KIND_HPANEL
@@ -110,21 +178,45 @@ tui_create_02:
   lda #$00
   jsr SPI_WRITE
 
-@create_02_deselect:
+@deselect:
   pha
   jsr SPI_DESELECT
   pla
-@create_02_done:
+@done:
   rts
 
-; Send a TUI create transaction for handle 0x03.
+; Send a TUI create transaction for handle 0x02 (vpanel).
+; in:  none
+; out: carry clear = success
+;      carry set   = error
+; clobbers: A, flags
+tui_create_02v:
+  jsr SPI_SELECT
+  bcs @done
+  lda #TUI_CREATE
+  jsr SPI_WRITE
+  lda #KIND_VPANEL
+  jsr SPI_WRITE
+  lda #$02
+  jsr SPI_WRITE
+  lda #$00
+  jsr SPI_WRITE
+
+@deselect:
+  pha
+  jsr SPI_DESELECT
+  pla
+@done:
+  rts
+
+; Send a TUI create transaction for handle 0x03 (vpanel).
 ; in:  none
 ; out: carry clear = success
 ;      carry set   = error
 ; clobbers: A, flags
 tui_create_03:
   jsr SPI_SELECT
-  bcs @create_03_done
+  bcs @done
   lda #TUI_CREATE
   jsr SPI_WRITE
   lda #KIND_VPANEL
@@ -134,11 +226,35 @@ tui_create_03:
   lda #$00
   jsr SPI_WRITE
 
-@create_03_deselect:
+@deselect:
   pha
   jsr SPI_DESELECT
   pla
-@create_03_done:
+@done:
+  rts
+
+; Send a TUI create transaction for handle 0x03 (panel).
+; in:  none
+; out: carry clear = success
+;      carry set   = error
+; clobbers: A, flags
+tui_create_03p:
+  jsr SPI_SELECT
+  bcs @done
+  lda #TUI_CREATE
+  jsr SPI_WRITE
+  lda #KIND_PANEL
+  jsr SPI_WRITE
+  lda #$03
+  jsr SPI_WRITE
+  lda #$00
+  jsr SPI_WRITE
+
+@deselect:
+  pha
+  jsr SPI_DESELECT
+  pla
+@done:
   rts
 
 ; Send a TUI revert transaction.
@@ -159,24 +275,25 @@ tui_revert:
 @done:
   rts
 
-; Send a TUI destroy transaction for handle 0x02.
-; in:  none
+; Send a TUI destroy transaction.
+; in:  A = handle
 ; out: carry clear = success
 ;      carry set   = error
 ; clobbers: A, flags
-tui_destroy_02:
+tui_destroy:
+  tax
   jsr SPI_SELECT
-  bcs @destroy_02_done
+  bcs @done
   lda #TUI_DESTROY
   jsr SPI_WRITE
-  lda #$02
+  txa
   jsr SPI_WRITE
 
-@destroy_02_deselect:
+@deselect:
   pha
   jsr SPI_DESELECT
   pla
-@destroy_02_done:
+@done:
   rts
 
 ; Send a TUI commit transaction.
