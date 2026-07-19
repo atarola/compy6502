@@ -109,12 +109,8 @@ async fn next_response(rx: u8, txn_buf: &CommandBuffer) -> u8 {
     }
 
     match rx {
-        CMD_READ_STATUS => {
-            status_byte()
-        }
-        CMD_GET_CHAR => {
-            KeyboardHandle::new().get_char().await.unwrap_or(0)
-        }
+        CMD_READ_STATUS => status_byte(),
+        CMD_GET_CHAR => KeyboardHandle::new().get_char().await.unwrap_or(0),
         _ => 0,
     }
 }
