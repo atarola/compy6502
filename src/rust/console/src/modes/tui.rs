@@ -16,7 +16,7 @@ impl DisplayMode for Tui {
         self.dirty = true;
     }
 
-    fn consume(&mut self, _byte: u8) {}
+    fn consume_txn(&mut self, _bytes: &[u8]) {}
 
     fn tick(&mut self) {}
 

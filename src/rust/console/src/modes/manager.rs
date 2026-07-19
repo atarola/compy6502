@@ -47,36 +47,24 @@ impl Modes {
     fn handle_txn_bytes(&mut self, bytes: &[u8]) {
         self.state = ModeTxnState::AwaitOpcode;
 
-        for byte in bytes {
-            self.handle_consume(*byte);
+        match bytes.first().copied() {
+            Some(SWITCH_MODE_OPCODE) => {
+                if let Some(&mode) = bytes.get(1) {
+                    self.handle_mode_switch(mode);
+                }
+                self.state = ModeTxnState::AwaitOpcode;
+                return;
+            }
+            Some(_) => {}
+            None => return,
+        }
+
+        match self.active {
+            ActiveMode::Text => self.text.consume_txn(bytes),
+            ActiveMode::Tui => self.tui.consume_txn(bytes),
         }
 
         self.state = ModeTxnState::AwaitOpcode;
-    }
-
-    fn handle_consume(&mut self, byte: u8) {
-        match self.state {
-            ModeTxnState::AwaitOpcode => {
-                if byte == SWITCH_MODE_OPCODE {
-                    log::info!("modes: switch mode opcode");
-                    self.state = ModeTxnState::AwaitMode;
-                    return;
-                }
-
-                self.state = ModeTxnState::Active;
-                match self.active {
-                    ActiveMode::Text => self.text.consume(byte),
-                    ActiveMode::Tui => self.tui.consume(byte),
-                }
-            }
-            ModeTxnState::AwaitMode => {
-                self.handle_mode_switch(byte);
-            }
-            ModeTxnState::Active => match self.active {
-                ActiveMode::Text => self.text.consume(byte),
-                ActiveMode::Tui => self.tui.consume(byte),
-            },
-        }
     }
 
     fn handle_mode_switch(&mut self, mode: u8) {

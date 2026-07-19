@@ -414,15 +414,17 @@ impl DisplayMode for Text {
         self.state = TextState::new();
     }
 
-    fn consume(&mut self, byte: u8) {
-        if self.awaiting_put_char {
-            self.awaiting_put_char = false;
-            self.put_char(byte);
-            return;
-        }
+    fn consume_txn(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
+            if self.awaiting_put_char {
+                self.awaiting_put_char = false;
+                self.put_char(byte);
+                continue;
+            }
 
-        if byte == CMD_PUT_CHAR {
-            self.awaiting_put_char = true;
+            if byte == CMD_PUT_CHAR {
+                self.awaiting_put_char = true;
+            }
         }
     }
 
