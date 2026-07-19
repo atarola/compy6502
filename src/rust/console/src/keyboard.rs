@@ -2,7 +2,7 @@
 
 use embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig;
 use embassy_executor::Spawner;
-use embassy_rp::gpio::{Input, Output};
+use embassy_rp::gpio::Output;
 use embassy_rp::peripherals::SPI1;
 use embassy_rp::spi::{Async, Spi};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
@@ -23,9 +23,6 @@ type MaxSpiDevice = SpiDeviceWithConfig<
 
 static KEYBOARD_CHANNEL: Channel<CriticalSectionRawMutex, u8, 64> = Channel::new();
 static KEYBOARD_QUEUED: AtomicU32 = AtomicU32::new(0);
-static KEYBOARD_ENQUEUED: AtomicU32 = AtomicU32::new(0);
-static KEYBOARD_DEQUEUED: AtomicU32 = AtomicU32::new(0);
-static KEYBOARD_REPORTS: AtomicU32 = AtomicU32::new(0);
 
 struct HidEndpoint {
     addr: u8,
@@ -46,24 +43,13 @@ impl KeyboardHandle {
     pub async fn get_char(&self) -> Option<u8> {
         let ch = KEYBOARD_CHANNEL.try_receive().ok()?;
         KEYBOARD_QUEUED.fetch_sub(1, Ordering::Relaxed);
-        KEYBOARD_DEQUEUED.fetch_add(1, Ordering::Relaxed);
         Some(ch)
     }
-}
-
-pub fn take_stats() -> (u32, u32, u32, u32) {
-    (
-        KEYBOARD_REPORTS.swap(0, Ordering::Relaxed),
-        KEYBOARD_ENQUEUED.swap(0, Ordering::Relaxed),
-        KEYBOARD_DEQUEUED.swap(0, Ordering::Relaxed),
-        KEYBOARD_QUEUED.load(Ordering::Relaxed),
-    )
 }
 
 async fn enqueue_key(byte: u8) {
     KEYBOARD_CHANNEL.send(byte).await;
     KEYBOARD_QUEUED.fetch_add(1, Ordering::Relaxed);
-    KEYBOARD_ENQUEUED.fetch_add(1, Ordering::Relaxed);
 }
 
 pub async fn keyboard_init(spawner: &Spawner, mut device: MaxSpiDevice) {
@@ -453,7 +439,6 @@ async fn poll_hid(device: &mut MaxSpiDevice, ep: &HidEndpoint) {
         )
         .await;
         if response == 0 {
-            KEYBOARD_REPORTS.fetch_add(1, Ordering::Relaxed);
             process_report(&curr, &prev).await;
             prev = curr;
         }

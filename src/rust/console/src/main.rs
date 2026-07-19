@@ -9,8 +9,6 @@ mod keymap;
 mod max3421e;
 mod modes;
 
-use crate::eve::*;
-use defmt::*;
 use embassy_embedded_hal::shared_bus::asynch::spi::SpiDeviceWithConfig;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;

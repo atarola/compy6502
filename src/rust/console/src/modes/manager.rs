@@ -4,7 +4,6 @@ use embassy_time::{Duration, Ticker};
 
 use crate::display::DisplayHandle;
 use crate::host;
-use crate::keyboard;
 use crate::modes::DisplayMode;
 use crate::modes::text::Text;
 use crate::modes::tui::Tui;
@@ -123,30 +122,7 @@ impl Modes {
 }
 
 pub fn modes_init(spawner: Spawner) {
-    spawner.spawn(modes_diag_task()).unwrap();
     spawner.spawn(modes_task()).unwrap();
-}
-
-#[embassy_executor::task]
-async fn modes_diag_task() {
-    let mut tick = Ticker::every(Duration::from_secs(1));
-
-    loop {
-        tick.next().await;
-        let (host_enqueued, host_dropped, status_reads, get_char_reads) = host::take_txn_stats();
-        let (key_reports, key_enqueued, key_dequeued, key_queued) = keyboard::take_stats();
-        log::info!(
-            "modes: host_enq={} host_drop={} status={} get_char={} key_reports={} key_enq={} key_deq={} key_q={}",
-            host_enqueued,
-            host_dropped,
-            status_reads,
-            get_char_reads,
-            key_reports,
-            key_enqueued,
-            key_dequeued,
-            key_queued,
-        );
-    }
 }
 
 #[embassy_executor::task]

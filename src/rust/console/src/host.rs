@@ -8,14 +8,12 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
 use embassy_time::Timer;
 use heapless::Vec;
-use portable_atomic::{AtomicU32, Ordering};
 use static_cell::StaticCell;
 
 use crate::keyboard::KeyboardHandle;
 
 const CMD_READ_STATUS: u8 = 0x01;
 const CMD_GET_CHAR: u8 = 0x20;
-pub const CMD_WAKEUP: u8 = 0x5A;
 const STATUS_KEYBOARD_READY: u8 = 0x01;
 const STATUS_HOST_READY: u8 = 0x02;
 const CS_LOW_MARKER: u32 = u32::MAX;
@@ -26,10 +24,6 @@ const HOST_READY_FREE_SLOTS: u32 = 8;
 
 static HOST_TXN_CHANNEL: Channel<CriticalSectionRawMutex, HostTxn, HOST_TXN_QUEUE_DEPTH> =
     Channel::new();
-static HOST_TXN_ENQUEUED: AtomicU32 = AtomicU32::new(0);
-static HOST_TXN_DROPPED: AtomicU32 = AtomicU32::new(0);
-static HOST_STATUS_READS: AtomicU32 = AtomicU32::new(0);
-static HOST_GET_CHAR_READS: AtomicU32 = AtomicU32::new(0);
 
 pub struct HostTxn {
     buf: Vec<u8, HOST_TXN_CAPACITY>,
@@ -40,14 +34,6 @@ impl HostTxn {
         let mut txn = HostTxn { buf: Vec::new() };
         txn.buf.extend_from_slice(&buf.buf).ok()?;
         Some(txn)
-    }
-
-    pub fn opcode(&self) -> Option<u8> {
-        self.buf.first().copied()
-    }
-
-    pub fn len(&self) -> usize {
-        self.buf.len()
     }
 
     pub fn as_slice(&self) -> &[u8] {
@@ -91,14 +77,7 @@ fn enqueue_txn(buf: &CommandBuffer) {
     }
 
     if let Some(txn) = HostTxn::from_buffer(buf) {
-        match HOST_TXN_CHANNEL.try_send(txn) {
-            Ok(()) => {
-                HOST_TXN_ENQUEUED.fetch_add(1, Ordering::Relaxed);
-            }
-            Err(_) => {
-                HOST_TXN_DROPPED.fetch_add(1, Ordering::Relaxed);
-            }
-        }
+        let _ = HOST_TXN_CHANNEL.try_send(txn);
     }
 }
 
@@ -131,24 +110,13 @@ async fn next_response(rx: u8, txn_buf: &CommandBuffer) -> u8 {
 
     match rx {
         CMD_READ_STATUS => {
-            HOST_STATUS_READS.fetch_add(1, Ordering::Relaxed);
             status_byte()
         }
         CMD_GET_CHAR => {
-            HOST_GET_CHAR_READS.fetch_add(1, Ordering::Relaxed);
             KeyboardHandle::new().get_char().await.unwrap_or(0)
         }
         _ => 0,
     }
-}
-
-pub fn take_txn_stats() -> (u32, u32, u32, u32) {
-    (
-        HOST_TXN_ENQUEUED.swap(0, Ordering::Relaxed),
-        HOST_TXN_DROPPED.swap(0, Ordering::Relaxed),
-        HOST_STATUS_READS.swap(0, Ordering::Relaxed),
-        HOST_GET_CHAR_READS.swap(0, Ordering::Relaxed),
-    )
 }
 
 fn poll_cs_edges(
