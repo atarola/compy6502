@@ -4,7 +4,7 @@ use crate::modes::DisplayMode;
 mod node;
 
 use node::NodeTable;
-use node::NO_NODE;
+use node::{NO_NODE, PROP_FLEX, PROP_VISIBLE};
 
 const CMD_REVERT: u8 = 0x1E;
 const CMD_COMMIT: u8 = 0x1F;
@@ -20,10 +20,24 @@ const KIND_LABEL: u8 = 0x04;
 const KIND_ITEM: u8 = 0x05;
 const KIND_LISTBOX: u8 = 0x06;
 
+const SCREEN_W: u16 = 480;
+const SCREEN_H: u16 = 272;
+
+const PANEL_BG: [u8; 3] = [40, 40, 50];
+
+struct LayoutRect {
+    handle: u8,
+    x: u16,
+    y: u16,
+    w: u16,
+    h: u16,
+}
+
 pub struct Tui {
     live: NodeTable,
     staged: NodeTable,
     dirty: bool,
+    rects: heapless::Vec<LayoutRect, 64>,
 }
 
 impl Tui {
@@ -32,6 +46,7 @@ impl Tui {
             live: NodeTable::new(),
             staged: NodeTable::new(),
             dirty: true,
+            rects: heapless::Vec::new(),
         }
     }
 }
@@ -90,50 +105,110 @@ impl DisplayMode for Tui {
             return;
         }
 
-        render_log(display, &self.live).await;
+        self.rects.clear();
+        layout_tree(&self.live, 0, 0, 0, SCREEN_W, SCREEN_H, &mut self.rects);
+        log::info!("tui: render rects={}", self.rects.len());
+        for r in self.rects.iter() {
+            log::info!("tui: rect h=0x{:02X} x={} y={} w={} h={}", r.handle, r.x, r.y, r.w, r.h);
+        }
+        render_eve(display, &self.live, &self.rects).await;
         self.dirty = false;
     }
 }
 
-async fn render_log(_display: &mut DisplayHandle, live: &NodeTable) {
-    log::info!("tui: render");
-    render_node(live, 0, 0);
-}
-
-fn render_node(table: &NodeTable, handle: u8, depth: usize) {
-    const INDENT: [&str; 8] = ["", "  ", "    ", "      ", "        ", "          ", "            ", "              "];
-
+fn layout_tree(
+    table: &NodeTable,
+    handle: u8,
+    x: u16,
+    y: u16,
+    w: u16,
+    h: u16,
+    rects: &mut heapless::Vec<LayoutRect, 64>,
+) {
     let node = table.node(handle);
-    let indent = INDENT.get(depth).copied().unwrap_or("              ");
-    log::info!("tui: {}- 0x{:02X} kind={}", indent, handle, kind_name(node.kind));
 
-    if node.props[0] != 0 || node.props[1] != 0 || node.props[2] != 0 || node.props[3] != 0 {
-        log::info!(
-            "tui: {}  props x={} y={} w={} h={}",
-            indent,
-            node.props[0],
-            node.props[1],
-            node.props[2],
-            node.props[3]
-        );
+    if handle != 0 && node.props[PROP_VISIBLE as usize] == 0 {
+        return;
+    }
+
+    if handle != 0 {
+        let _ = rects.push(LayoutRect { handle, x, y, w, h });
+    }
+
+    let total_flex = count_flex(table, handle);
+    if total_flex == 0 {
+        return;
     }
 
     let mut child = node.first_child;
+    let mut offset = 0u16;
+    let mut first = true;
+
     while child != NO_NODE {
-        render_node(table, child, depth + 1);
-        child = table.node(child).next_sibling;
+        let child_node = table.node(child);
+        let flex = child_node.props[PROP_FLEX as usize] as u16;
+        if flex == 0 {
+            child = child_node.next_sibling;
+            continue;
+        }
+
+        let child_w = (w as u32 * flex as u32 / total_flex as u32) as u16 - 1;
+        let child_x = if first { x + offset } else { x + offset + 2 };
+        layout_tree(table, child, child_x, y, child_w, h - 1, rects);
+        offset += child_w + 1;
+        first = false;
+        child = child_node.next_sibling;
     }
 }
 
-fn kind_name(kind: u8) -> &'static str {
-    match kind {
-        KIND_ROOT => "root",
-        KIND_PANEL => "panel",
-        KIND_HPANEL => "hpanel",
-        KIND_VPANEL => "vpanel",
-        KIND_LABEL => "label",
-        KIND_ITEM => "item",
-        KIND_LISTBOX => "listbox",
-        _ => "unknown",
+fn count_flex(table: &NodeTable, handle: u8) -> u16 {
+    let node = table.node(handle);
+    let mut total = 0u16;
+    let mut child = node.first_child;
+    while child != NO_NODE {
+        let child_node = table.node(child);
+        if child_node.props[PROP_VISIBLE as usize] != 0 {
+            total += child_node.props[PROP_FLEX as usize] as u16;
+        }
+        child = child_node.next_sibling;
     }
+    total
+}
+
+async fn render_eve(display: &mut DisplayHandle, table: &NodeTable, rects: &[LayoutRect]) {
+    use crate::eve::*;
+
+    let mut i = 0u32;
+
+    display.write32(EVE_RAM_DL + i * 4, clear_color_rgb(10, 10, 15)).await;
+    i += 1;
+    display.write32(EVE_RAM_DL + i * 4, clear(1, 1, 1)).await;
+    i += 1;
+
+    for rect in rects.iter() {
+        let node = table.node(rect.handle);
+        let color = match node.kind {
+            KIND_PANEL | KIND_HPANEL | KIND_VPANEL => PANEL_BG,
+            KIND_LISTBOX => [30, 30, 40],
+            KIND_LABEL | KIND_ITEM => [50, 50, 60],
+            _ => [40, 40, 50],
+        };
+
+        display.write32(EVE_RAM_DL + i * 4, color_rgb(color[0] as u32, color[1] as u32, color[2] as u32)).await;
+        i += 1;
+        display.write32(EVE_RAM_DL + i * 4, begin(EVE_RECTS)).await;
+        i += 1;
+        display.write32(EVE_RAM_DL + i * 4, vertex2f(rect.x as u32 * 16, rect.y as u32 * 16)).await;
+        i += 1;
+        display.write32(EVE_RAM_DL + i * 4, vertex2f(
+            (rect.x + rect.w) as u32 * 16,
+            (rect.y + rect.h) as u32 * 16,
+        )).await;
+        i += 1;
+        display.write32(EVE_RAM_DL + i * 4, end()).await;
+        i += 1;
+    }
+
+    display.write32(EVE_RAM_DL + i * 4, DL_DISPLAY).await;
+    display.write8(REG_DLSWAP, EVE_DLSWAP_FRAME).await;
 }

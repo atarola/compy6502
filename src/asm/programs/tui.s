@@ -7,84 +7,91 @@ MODE_TUI    = $01
 KIND_PANEL   = $01
 KIND_HPANEL  = $02
 KIND_VPANEL  = $03
+KIND_LABEL   = $04
+KIND_ITEM    = $05
+KIND_LISTBOX = $06
 TUI_DESTROY  = $11
+TUI_CREATE   = $10
+TUI_SET      = $12
 TUI_REVERT   = $1E
 TUI_COMMIT   = $1F
-TUI_CREATE   = $10
+
+PROP_X         = $00
+PROP_Y         = $01
+PROP_WIDTH     = $02
+PROP_HEIGHT    = $03
+PROP_VISIBLE   = $04
+PROP_FOCUS     = $05
+PROP_TEXT_HDL  = $06
+PROP_FLEX      = $07
 
 .org $1000
   lda #SPI_CLK_125K
   ora #SPI_CS_SEL3
   jsr SPI_CONFIGURE
-  bcs @error
+  bcc :+
+  jmp @error
+:
 
   jsr tui_mode
-  bcs @error
+  bcc :+
+  jmp @error
+:
 
-; --- Test 1: No-revert commit chain ---
-  jsr tui_create_01        ; create 0x01 panel
-  bcs @error
-  jsr tui_commit           ; live: 0x01
-  bcs @error
+; --- Layout: two panels, left 66%, right 33% ---
+  lda #KIND_PANEL
+  ldx #$01
+  ldy #$00
+  jsr tui_create             ; create 0x01 panel under root
+  bcc :+
+  jmp @error
+:
+  lda #KIND_PANEL
+  ldx #$02
+  ldy #$00
+  jsr tui_create             ; create 0x02 panel under root
+  bcc :+
+  jmp @error
+:
 
-  jsr tui_create_02        ; create 0x02 hpanel
-  bcs @error
-  jsr tui_commit           ; live: 0x01, 0x02
-  bcs @error
-
-; --- Test 2: Double revert (harmless) ---
-  jsr tui_create_03        ; create 0x03 vpanel
-  bcs @error
-  jsr tui_revert           ; revert: staged back to live
-  bcs @error
-  jsr tui_revert           ; second revert: no-op
-  bcs @error
-  jsr tui_commit           ; live: 0x01, 0x02
-  bcs @error
-
-; --- Test 3: Destroy nonexistent (no-op) ---
-  lda #$04
-  jsr tui_destroy          ; destroy 0x04: doesn't exist
-  bcs @error
-  jsr tui_commit           ; live: 0x01, 0x02 (unchanged)
-  bcs @error
-
-; --- Test 4: Destroy after commit ---
+; set left panel (0x02, first in child list) flex=2
   lda #$02
-  jsr tui_destroy          ; destroy 0x02
-  bcs @error
-  jsr tui_commit           ; live: 0x01
-  bcs @error
+  ldx #PROP_FLEX
+  ldy #2
+  jsr tui_set
+  bcc :+
+  jmp @error
+:
 
-; --- Test 5: Create-replace existing handle ---
-  jsr tui_create_01h       ; create 0x01 hpanel (replaces panel)
-  bcs @error
-  jsr tui_commit           ; live: 0x01 hpanel
-  bcs @error
-
-; --- Test 6: Empty commit (no-op) ---
-  jsr tui_commit           ; live: 0x01 hpanel (unchanged)
-  bcs @error
-
-; --- Test 7: Multiple creates, single commit ---
-  jsr tui_create_02v       ; create 0x02 vpanel
-  bcs @error
-  jsr tui_create_03p       ; create 0x03 panel
-  bcs @error
-  jsr tui_commit           ; live: 0x01 hpanel, 0x03 panel, 0x02 vpanel
-  bcs @error
-
-; --- Test 8: Revert undoes all staged changes ---
+; set right panel (0x01, second in child list) flex=1
   lda #$01
-  jsr tui_destroy          ; destroy 0x01
-  bcs @error
+  ldx #PROP_FLEX
+  ldy #1
+  jsr tui_set
+  bcc :+
+  jmp @error
+:
+
+; set both visible
+  lda #$01
+  ldx #PROP_VISIBLE
+  ldy #1
+  jsr tui_set
+  bcc :+
+  jmp @error
+:
   lda #$02
-  jsr tui_destroy          ; destroy 0x02
-  bcs @error
-  jsr tui_revert           ; revert: staged back to live
-  bcs @error
-  jsr tui_commit           ; live: 0x01 hpanel, 0x03 panel, 0x02 vpanel
-  bcs @error
+  ldx #PROP_VISIBLE
+  ldy #1
+  jsr tui_set
+  bcc :+
+  jmp @error
+:
+
+  jsr tui_commit
+  bcc :+
+  jmp @error
+:
 
 @done:
   jmp WOZMON
@@ -113,141 +120,22 @@ tui_mode:
 @done:
   rts
 
-; Send a TUI create transaction for handle 0x01 (panel).
-; in:  none
+; Send a TUI create transaction.
+; in:  A = kind, X = handle, Y = parent
 ; out: carry clear = success
 ;      carry set   = error
 ; clobbers: A, flags
-tui_create_01:
-  jsr SPI_SELECT
-  bcs @done
-  lda #TUI_CREATE
-  jsr SPI_WRITE
-  lda #KIND_PANEL
-  jsr SPI_WRITE
-  lda #$01
-  jsr SPI_WRITE
-  lda #$00
-  jsr SPI_WRITE
-
-@deselect:
+tui_create:
   pha
-  jsr SPI_DESELECT
-  pla
-@done:
-  rts
-
-; Send a TUI create transaction for handle 0x01 (hpanel).
-; in:  none
-; out: carry clear = success
-;      carry set   = error
-; clobbers: A, flags
-tui_create_01h:
   jsr SPI_SELECT
   bcs @done
   lda #TUI_CREATE
   jsr SPI_WRITE
-  lda #KIND_HPANEL
-  jsr SPI_WRITE
-  lda #$01
-  jsr SPI_WRITE
-  lda #$00
-  jsr SPI_WRITE
-
-@deselect:
-  pha
-  jsr SPI_DESELECT
   pla
-@done:
-  rts
-
-; Send a TUI create transaction for handle 0x02 (hpanel).
-; in:  none
-; out: carry clear = success
-;      carry set   = error
-; clobbers: A, flags
-tui_create_02:
-  jsr SPI_SELECT
-  bcs @done
-  lda #TUI_CREATE
   jsr SPI_WRITE
-  lda #KIND_HPANEL
+  txa
   jsr SPI_WRITE
-  lda #$02
-  jsr SPI_WRITE
-  lda #$00
-  jsr SPI_WRITE
-
-@deselect:
-  pha
-  jsr SPI_DESELECT
-  pla
-@done:
-  rts
-
-; Send a TUI create transaction for handle 0x02 (vpanel).
-; in:  none
-; out: carry clear = success
-;      carry set   = error
-; clobbers: A, flags
-tui_create_02v:
-  jsr SPI_SELECT
-  bcs @done
-  lda #TUI_CREATE
-  jsr SPI_WRITE
-  lda #KIND_VPANEL
-  jsr SPI_WRITE
-  lda #$02
-  jsr SPI_WRITE
-  lda #$00
-  jsr SPI_WRITE
-
-@deselect:
-  pha
-  jsr SPI_DESELECT
-  pla
-@done:
-  rts
-
-; Send a TUI create transaction for handle 0x03 (vpanel).
-; in:  none
-; out: carry clear = success
-;      carry set   = error
-; clobbers: A, flags
-tui_create_03:
-  jsr SPI_SELECT
-  bcs @done
-  lda #TUI_CREATE
-  jsr SPI_WRITE
-  lda #KIND_VPANEL
-  jsr SPI_WRITE
-  lda #$03
-  jsr SPI_WRITE
-  lda #$00
-  jsr SPI_WRITE
-
-@deselect:
-  pha
-  jsr SPI_DESELECT
-  pla
-@done:
-  rts
-
-; Send a TUI create transaction for handle 0x03 (panel).
-; in:  none
-; out: carry clear = success
-;      carry set   = error
-; clobbers: A, flags
-tui_create_03p:
-  jsr SPI_SELECT
-  bcs @done
-  lda #TUI_CREATE
-  jsr SPI_WRITE
-  lda #KIND_PANEL
-  jsr SPI_WRITE
-  lda #$03
-  jsr SPI_WRITE
-  lda #$00
+  tya
   jsr SPI_WRITE
 
 @deselect:
@@ -305,6 +193,31 @@ tui_commit:
   jsr SPI_SELECT
   bcs @done
   lda #TUI_COMMIT
+  jsr SPI_WRITE
+
+@deselect:
+  pha
+  jsr SPI_DESELECT
+  pla
+@done:
+  rts
+
+; Send a TUI set transaction.
+; in:  A = handle, X = key, Y = value
+; out: carry clear = success
+;      carry set   = error
+; clobbers: A, flags
+tui_set:
+  pha
+  jsr SPI_SELECT
+  bcs @done
+  lda #TUI_SET
+  jsr SPI_WRITE
+  pla
+  jsr SPI_WRITE
+  txa
+  jsr SPI_WRITE
+  tya
   jsr SPI_WRITE
 
 @deselect:
