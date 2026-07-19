@@ -8,20 +8,23 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
 use embassy_time::Timer;
 use heapless::Vec;
+use portable_atomic::{AtomicU32, Ordering};
 use static_cell::StaticCell;
 
 use crate::keyboard::KeyboardHandle;
 
 const CMD_READ_STATUS: u8 = 0x01;
 const CMD_GET_CHAR: u8 = 0x20;
-const CMD_WAKEUP: u8 = 0x5A;
+pub const CMD_WAKEUP: u8 = 0x5A;
 const CS_LOW_MARKER: u32 = u32::MAX;
 const CS_HIGH_MARKER: u32 = u32::MAX - 1;
-const HOST_TXN_QUEUE_DEPTH: usize = 4;
-const HOST_TXN_CAPACITY: usize = 256;
+const HOST_TXN_QUEUE_DEPTH: usize = 64;
+const HOST_TXN_CAPACITY: usize = 16;
 
 static HOST_TXN_CHANNEL: Channel<CriticalSectionRawMutex, HostTxn, HOST_TXN_QUEUE_DEPTH> =
     Channel::new();
+static HOST_TXN_ENQUEUED: AtomicU32 = AtomicU32::new(0);
+static HOST_TXN_DROPPED: AtomicU32 = AtomicU32::new(0);
 
 pub struct HostTxn {
     buf: Vec<u8, HOST_TXN_CAPACITY>,
@@ -34,23 +37,18 @@ impl HostTxn {
         Some(txn)
     }
 
-    fn opcode(&self) -> Option<u8> {
+    pub fn opcode(&self) -> Option<u8> {
         self.buf.first().copied()
     }
 
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.buf.len()
     }
-}
 
-const EXPECTED_TXNS: &[(u8, usize)] = &[
-    (0xA1, 1),
-    (0xB1, 2),
-    (0xC1, 3),
-    (0xD1, 4),
-    (0xE1, 8),
-    (0xF1, 16),
-];
+    pub fn as_slice(&self) -> &[u8] {
+        &self.buf
+    }
+}
 
 pub struct CommandBuffer {
     buf: Vec<u8, HOST_TXN_CAPACITY>,
@@ -83,10 +81,30 @@ fn decode_rx(word: u32) -> u8 {
 
 fn enqueue_txn(buf: &CommandBuffer) {
     if let Some(txn) = HostTxn::from_buffer(buf) {
-        if HOST_TXN_CHANNEL.try_send(txn).is_err() {
-            log::info!("host: txn queue full len={}", buf.len);
+        match HOST_TXN_CHANNEL.try_send(txn) {
+            Ok(()) => {
+                HOST_TXN_ENQUEUED.fetch_add(1, Ordering::Relaxed);
+            }
+            Err(_) => {
+                HOST_TXN_DROPPED.fetch_add(1, Ordering::Relaxed);
+            }
         }
     }
+}
+
+pub async fn receive_txn() -> HostTxn {
+    HOST_TXN_CHANNEL.receive().await
+}
+
+pub fn try_receive_txn() -> Option<HostTxn> {
+    HOST_TXN_CHANNEL.try_receive().ok()
+}
+
+pub fn take_txn_stats() -> (u32, u32) {
+    (
+        HOST_TXN_ENQUEUED.swap(0, Ordering::Relaxed),
+        HOST_TXN_DROPPED.swap(0, Ordering::Relaxed),
+    )
 }
 
 fn poll_cs_edges(
@@ -140,78 +158,8 @@ pub fn host_init(
             spawner
                 .spawn(pio_task(pio0, pin_miso, pin_cs, pin_sck, pin_mosi))
                 .unwrap();
-            spawner.spawn(host_task()).unwrap();
         });
     });
-}
-
-#[embassy_executor::task]
-async fn host_task() {
-    let receiver = HOST_TXN_CHANNEL.receiver();
-    let mut expected = 0usize;
-    let mut locked = false;
-    let mut total = 0u32;
-    let mut errors = 0u32;
-    log::info!("host: txn consumer start");
-
-    loop {
-        let txn = receiver.receive().await;
-        total = total.wrapping_add(1);
-
-        if let Some(opcode) = txn.opcode() {
-            if opcode == CMD_WAKEUP && txn.len() == 1 {
-                expected = 0;
-                if !locked {
-                    log::info!("host: txn validator locked total={}", total);
-                }
-                locked = true;
-                continue;
-            }
-
-            if !locked {
-                continue;
-            }
-
-            let observed = EXPECTED_TXNS
-                .iter()
-                .enumerate()
-                .find(|(_, (op, len))| opcode == *op && txn.len() == *len)
-                .map(|(idx, _)| idx);
-
-            match observed {
-                Some(idx) if idx == expected => {
-                    expected = (idx + 1) % EXPECTED_TXNS.len();
-                }
-                Some(_) => {
-                    errors = errors.wrapping_add(1);
-                    let (expected_opcode, expected_len) = EXPECTED_TXNS[expected];
-                    log::info!(
-                        "host: txn sequence mismatch got opcode=0x{:02X} len={} expected opcode=0x{:02X} len={}",
-                        opcode,
-                        txn.len(),
-                        expected_opcode,
-                        expected_len
-                    );
-                    locked = false;
-                    expected = 0;
-                }
-                None => {
-                    errors = errors.wrapping_add(1);
-                    log::info!(
-                        "host: txn shape mismatch got opcode=0x{:02X} len={}",
-                        opcode,
-                        txn.len()
-                    );
-                    locked = false;
-                    expected = 0;
-                }
-            }
-        }
-
-        if total % 1024 == 0 {
-            log::info!("host: txn summary total={} errors={}", total, errors);
-        }
-    }
 }
 
 #[embassy_executor::task]

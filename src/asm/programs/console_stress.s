@@ -5,7 +5,7 @@
 PUT_CHAR = $21
 
 .org $1000
-  lda #SPI_CLK_1M
+  lda #SPI_CLK_500K
   ora #SPI_CS_SEL3
   jsr SPI_CONFIGURE
 

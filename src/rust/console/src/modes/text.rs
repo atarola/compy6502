@@ -397,23 +397,17 @@ impl DisplayMode for Text {
         self.state = TextState::new();
     }
 
-    fn start_txn(&mut self) {}
-
     fn consume(&mut self, byte: u8) {
         if self.awaiting_put_char {
             self.awaiting_put_char = false;
-            log::info!("text: put char 0x{:02X}", byte);
             self.put_char(byte);
             return;
         }
 
         if byte == CMD_PUT_CHAR {
-            log::info!("text: put char opcode");
             self.awaiting_put_char = true;
         }
     }
-
-    fn end_txn(&mut self) {}
 
     fn tick(&mut self) {
         self.blink_ticks += 1;

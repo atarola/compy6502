@@ -54,15 +54,11 @@ impl DisplayMode for Tui {
         self.dirty = true;
     }
 
-    fn start_txn(&mut self) {}
-
     fn consume(&mut self, byte: u8) {
         if let Some(command) = self.parser.feed(byte) {
             self.apply(command);
         }
     }
-
-    fn end_txn(&mut self) {}
 
     fn tick(&mut self) {}
 

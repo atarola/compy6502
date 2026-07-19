@@ -1,10 +1,9 @@
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::channel::Channel;
 use embassy_time::{Duration, Ticker};
 
 use crate::display::DisplayHandle;
+use crate::host;
 use crate::modes::DisplayMode;
 use crate::modes::text::Text;
 use crate::modes::tui::Tui;
@@ -12,18 +11,6 @@ use crate::modes::tui::Tui;
 const SWITCH_MODE_OPCODE: u8 = 0xFF;
 const MODE_TEXT: u8 = 0x00;
 const MODE_TUI: u8 = 0x01;
-
-#[derive(Clone, Copy)]
-pub enum ModeEvent {
-    StartTxn,
-    Consume(u8),
-    EndTxn,
-    SwitchMode(u8),
-}
-
-static MODE_CHANNEL: Channel<CriticalSectionRawMutex, ModeEvent, 256> = Channel::new();
-
-pub struct ModeHandle;
 
 enum ActiveMode {
     Text,
@@ -34,28 +21,6 @@ enum ModeTxnState {
     AwaitOpcode,
     AwaitMode,
     Active,
-}
-
-impl ModeHandle {
-    pub fn new() -> ModeHandle {
-        ModeHandle
-    }
-
-    pub async fn start_txn(&self) {
-        MODE_CHANNEL.send(ModeEvent::StartTxn).await;
-    }
-
-    pub async fn consume(&self, byte: u8) {
-        MODE_CHANNEL.send(ModeEvent::Consume(byte)).await;
-    }
-
-    pub async fn end_txn(&self) {
-        MODE_CHANNEL.send(ModeEvent::EndTxn).await;
-    }
-
-    pub async fn switch_mode(&self, mode: u8) {
-        MODE_CHANNEL.send(ModeEvent::SwitchMode(mode)).await;
-    }
 }
 
 pub struct Modes {
@@ -75,24 +40,21 @@ impl Modes {
         }
     }
 
-    pub fn handle(&mut self, event: ModeEvent) {
-        match event {
-            ModeEvent::StartTxn => self.handle_start_txn(),
-            ModeEvent::Consume(byte) => self.handle_consume(byte),
-            ModeEvent::EndTxn => self.handle_end_txn(),
-            ModeEvent::SwitchMode(mode) => self.handle_mode_switch(mode),
-        }
+    fn handle_txn(&mut self, txn: &host::HostTxn) {
+        self.handle_txn_bytes(txn.as_slice());
     }
 
-    pub fn handle_start_txn(&mut self) {
+    fn handle_txn_bytes(&mut self, bytes: &[u8]) {
         self.state = ModeTxnState::AwaitOpcode;
-        match self.active {
-            ActiveMode::Text => self.text.start_txn(),
-            ActiveMode::Tui => self.tui.start_txn(),
+
+        for byte in bytes {
+            self.handle_consume(*byte);
         }
+
+        self.state = ModeTxnState::AwaitOpcode;
     }
 
-    pub fn handle_consume(&mut self, byte: u8) {
+    fn handle_consume(&mut self, byte: u8) {
         match self.state {
             ModeTxnState::AwaitOpcode => {
                 if byte == SWITCH_MODE_OPCODE {
@@ -114,14 +76,6 @@ impl Modes {
                 ActiveMode::Text => self.text.consume(byte),
                 ActiveMode::Tui => self.tui.consume(byte),
             },
-        }
-    }
-
-    pub fn handle_end_txn(&mut self) {
-        self.state = ModeTxnState::AwaitOpcode;
-        match self.active {
-            ActiveMode::Text => self.text.end_txn(),
-            ActiveMode::Tui => self.tui.end_txn(),
         }
     }
 
@@ -168,24 +122,62 @@ impl Modes {
 }
 
 pub fn modes_init(spawner: Spawner) {
+    spawner.spawn(modes_diag_task()).unwrap();
     spawner.spawn(modes_task()).unwrap();
 }
 
 #[embassy_executor::task]
+async fn modes_diag_task() {
+    let mut tick = Ticker::every(Duration::from_secs(1));
+
+    loop {
+        tick.next().await;
+        let (host_enqueued, host_dropped) = host::take_txn_stats();
+        log::info!(
+            "modes: host_enq={} host_drop={}",
+            host_enqueued,
+            host_dropped,
+        );
+    }
+}
+
+#[embassy_executor::task]
 async fn modes_task() {
-    let receiver = MODE_CHANNEL.receiver();
     let mut modes = Modes::new();
     let mut display = DisplayHandle::new();
     let mut tick = Ticker::every(Duration::from_millis(16));
+    let mut render_pending = false;
 
     loop {
-        match select(receiver.receive(), tick.next()).await {
-            Either::First(event) => {
-                modes.handle(event);
+        match select(host::receive_txn(), tick.next()).await {
+            Either::First(txn) => {
+                modes.handle_txn(&txn);
+                while let Some(txn) = host::try_receive_txn() {
+                    modes.handle_txn(&txn);
+                }
             }
             Either::Second(_) => {
-                modes.tick();
-                modes.render(&mut display).await;
+                render_pending = true;
+            }
+        }
+
+        while let Some(txn) = host::try_receive_txn() {
+            modes.handle_txn(&txn);
+        }
+
+        if render_pending {
+            match select(host::receive_txn(), async {}).await {
+                Either::First(txn) => {
+                    modes.handle_txn(&txn);
+                    while let Some(txn) = host::try_receive_txn() {
+                        modes.handle_txn(&txn);
+                    }
+                }
+                Either::Second(_) => {
+                    render_pending = false;
+                    modes.tick();
+                    modes.render(&mut display).await;
+                }
             }
         }
     }
