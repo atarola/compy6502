@@ -4,9 +4,12 @@ use crate::modes::DisplayMode;
 mod node;
 
 use node::NodeTable;
+use node::NO_NODE;
 
 const CMD_REVERT: u8 = 0x1E;
 const CMD_COMMIT: u8 = 0x1F;
+const CMD_DESTROY: u8 = 0x11;
+const CMD_CREATE: u8 = 0x10;
 
 pub struct Tui {
     live: NodeTable,
@@ -30,20 +33,32 @@ impl DisplayMode for Tui {
     }
 
     fn consume_txn(&mut self, bytes: &[u8]) {
-        if bytes.len() != 1 {
-            return;
-        }
-
-        match bytes[0] {
-            CMD_REVERT => {
+        match bytes {
+            [CMD_REVERT] => {
                 log::info!("tui: revert");
                 self.staged = self.live.clone();
                 self.dirty = true;
             }
-            CMD_COMMIT => {
+            [CMD_COMMIT] => {
                 log::info!("tui: commit");
                 core::mem::swap(&mut self.live, &mut self.staged);
                 self.dirty = true;
+            }
+            [CMD_DESTROY, handle] => {
+                log::info!("tui: destroy handle=0x{:02X}", handle);
+                self.staged.destroy(*handle);
+                self.dirty = true;
+            }
+            [CMD_CREATE, kind, handle, parent] => {
+                log::info!(
+                    "tui: create kind=0x{:02X} handle=0x{:02X} parent=0x{:02X}",
+                    kind,
+                    handle,
+                    parent
+                );
+                if self.staged.create(*kind, *handle, *parent) {
+                    self.dirty = true;
+                }
             }
             _ => return,
         }
@@ -62,7 +77,20 @@ impl DisplayMode for Tui {
 }
 
 async fn render_log(_display: &mut DisplayHandle, live: &NodeTable) {
-    let root = live.root();
     log::info!("tui: render");
-    log::info!("tui: root kind=0x{:02X} state=0x{:02X}", root.kind, root.state);
+    render_node(live, 0, 0);
+}
+
+fn render_node(table: &NodeTable, handle: u8, depth: usize) {
+    const INDENT: [&str; 8] = ["", "  ", "    ", "      ", "        ", "          ", "            ", "              "];
+
+    let node = table.node(handle);
+    let indent = INDENT.get(depth).copied().unwrap_or("              ");
+    log::info!("tui: {}- 0x{:02X}", indent, handle);
+
+    let mut child = node.first_child;
+    while child != NO_NODE {
+        render_node(table, child, depth + 1);
+        child = table.node(child).next_sibling;
+    }
 }
