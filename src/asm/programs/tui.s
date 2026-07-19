@@ -38,7 +38,8 @@ PROP_FLEX      = $07
   jmp @error
 :
 
-; --- Layout: two panels, left 66%, right 33% ---
+; --- Layout: left vpanel 66%, right hpanel 33% ---
+; right panel (0x01)
   lda #KIND_PANEL
   ldx #$01
   ldy #$00
@@ -46,24 +47,6 @@ PROP_FLEX      = $07
   bcc :+
   jmp @error
 :
-  lda #KIND_PANEL
-  ldx #$02
-  ldy #$00
-  jsr tui_create             ; create 0x02 panel under root
-  bcc :+
-  jmp @error
-:
-
-; set left panel (0x02, first in child list) flex=2
-  lda #$02
-  ldx #PROP_FLEX
-  ldy #2
-  jsr tui_set
-  bcc :+
-  jmp @error
-:
-
-; set right panel (0x01, second in child list) flex=1
   lda #$01
   ldx #PROP_FLEX
   ldy #1
@@ -71,8 +54,6 @@ PROP_FLEX      = $07
   bcc :+
   jmp @error
 :
-
-; set both visible
   lda #$01
   ldx #PROP_VISIBLE
   ldy #1
@@ -80,7 +61,69 @@ PROP_FLEX      = $07
   bcc :+
   jmp @error
 :
+
+; left panel (0x02) — vpanel
+  lda #KIND_VPANEL
+  ldx #$02
+  ldy #$00
+  jsr tui_create             ; create 0x02 vpanel under root
+  bcc :+
+  jmp @error
+:
   lda #$02
+  ldx #PROP_FLEX
+  ldy #2
+  jsr tui_set
+  bcc :+
+  jmp @error
+:
+  lda #$02
+  ldx #PROP_VISIBLE
+  ldy #1
+  jsr tui_set
+  bcc :+
+  jmp @error
+:
+
+; left child 0x04 (will be bottom — created first)
+  lda #KIND_PANEL
+  ldx #$04
+  ldy #$02
+  jsr tui_create             ; create 0x04 panel under 0x02
+  bcc :+
+  jmp @error
+:
+  lda #$04
+  ldx #PROP_FLEX
+  ldy #1
+  jsr tui_set
+  bcc :+
+  jmp @error
+:
+  lda #$04
+  ldx #PROP_VISIBLE
+  ldy #1
+  jsr tui_set
+  bcc :+
+  jmp @error
+:
+
+; left child 0x05 (will be top — created second)
+  lda #KIND_PANEL
+  ldx #$05
+  ldy #$02
+  jsr tui_create             ; create 0x05 panel under 0x02
+  bcc :+
+  jmp @error
+:
+  lda #$05
+  ldx #PROP_FLEX
+  ldy #1
+  jsr tui_set
+  bcc :+
+  jmp @error
+:
+  lda #$05
   ldx #PROP_VISIBLE
   ldy #1
   jsr tui_set
@@ -99,12 +142,34 @@ PROP_FLEX      = $07
 @error:
   jmp WOZMON
 
+HOST_READY = $02
+READ_STATUS = $01
+
+; Wait for the host to signal it is ready to accept a transaction.
+; Polls STATUS_READ_STATUS in a loop until HOST_READY bit is set.
+; in:  none
+; out: none
+; clobbers: A, flags
+tui_wait_ready:
+  jsr SPI_SELECT
+  lda #READ_STATUS
+  jsr SPI_WRITE
+  lda #0
+  jsr SPI_TRANSFER
+  pha
+  jsr SPI_DESELECT
+  pla
+  and #HOST_READY
+  beq tui_wait_ready
+  rts
+
 ; Switch display processor to TUI mode.
 ; in:  none
 ; out: carry clear = success
 ;      carry set   = error
 ; clobbers: A, flags
 tui_mode:
+  jsr tui_wait_ready
   jsr SPI_SELECT
   bcs @done
   lda #MODE_SWITCH
@@ -127,6 +192,7 @@ tui_mode:
 ; clobbers: A, flags
 tui_create:
   pha
+  jsr tui_wait_ready
   jsr SPI_SELECT
   bcs @done
   lda #TUI_CREATE
@@ -151,6 +217,7 @@ tui_create:
 ;      carry set   = error
 ; clobbers: A, flags
 tui_revert:
+  jsr tui_wait_ready
   jsr SPI_SELECT
   bcs @done
   lda #TUI_REVERT
@@ -170,6 +237,7 @@ tui_revert:
 ; clobbers: A, flags
 tui_destroy:
   tax
+  jsr tui_wait_ready
   jsr SPI_SELECT
   bcs @done
   lda #TUI_DESTROY
@@ -190,6 +258,7 @@ tui_destroy:
 ;      carry set   = error
 ; clobbers: A, flags
 tui_commit:
+  jsr tui_wait_ready
   jsr SPI_SELECT
   bcs @done
   lda #TUI_COMMIT
@@ -209,6 +278,7 @@ tui_commit:
 ; clobbers: A, flags
 tui_set:
   pha
+  jsr tui_wait_ready
   jsr SPI_SELECT
   bcs @done
   lda #TUI_SET

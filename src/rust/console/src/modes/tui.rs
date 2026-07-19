@@ -140,6 +140,7 @@ fn layout_tree(
         return;
     }
 
+    let is_vertical = node.kind == KIND_VPANEL;
     let mut child = node.first_child;
     let mut offset = 0u16;
     let mut first = true;
@@ -152,10 +153,17 @@ fn layout_tree(
             continue;
         }
 
-        let child_w = (w as u32 * flex as u32 / total_flex as u32) as u16 - 1;
-        let child_x = if first { x + offset } else { x + offset + 2 };
-        layout_tree(table, child, child_x, y, child_w, h - 1, rects);
-        offset += child_w + 1;
+        if is_vertical {
+            let child_h = (h as u32 * flex as u32 / total_flex as u32) as u16 - 1;
+            let child_y = if first { y + offset } else { y + offset + 2 };
+            layout_tree(table, child, x, child_y, w - 1, child_h, rects);
+            offset += child_h + 1;
+        } else {
+            let child_w = (w as u32 * flex as u32 / total_flex as u32) as u16 - 1;
+            let child_x = if first { x + offset } else { x + offset + 2 };
+            layout_tree(table, child, child_x, y, child_w, h - 1, rects);
+            offset += child_w + 1;
+        }
         first = false;
         child = child_node.next_sibling;
     }
@@ -188,7 +196,8 @@ async fn render_eve(display: &mut DisplayHandle, table: &NodeTable, rects: &[Lay
     for rect in rects.iter() {
         let node = table.node(rect.handle);
         let color = match node.kind {
-            KIND_PANEL | KIND_HPANEL | KIND_VPANEL => PANEL_BG,
+            KIND_PANEL => PANEL_BG,
+            KIND_HPANEL | KIND_VPANEL => continue,
             KIND_LISTBOX => [30, 30, 40],
             KIND_LABEL | KIND_ITEM => [50, 50, 60],
             _ => [40, 40, 50],
